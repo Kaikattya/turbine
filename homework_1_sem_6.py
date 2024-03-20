@@ -1,0 +1,131 @@
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "id": "05d944d2-7fb0-437e-9421-7e6b6be32431",
+   "metadata": {},
+   "source": [
+    "Каирова Екатерина ТФэ-01-21\n",
+    "6 семестр\n",
+    "Домашняя работа 1"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "052e0397-fd30-4749-9d99-5473e3beb68a",
+   "metadata": {},
+   "source": [
+    "Написать класс идеального газа для расчета давления, удельного обьема, энтальпии, температуры произвольно заданного газа (например через задание \r\n",
+    " и \r\n",
+    "). Класс помимо расчета состояния газа в точке должен уметь расчитывать изопроцессы.\r\n",
+    "Реализовать класс для водяного пара через IAPWS c таким же интерфейсом что и в п.1\r\n",
+    "(Опционально) Реализовать класс полуидеального газа с теми же свойствами описанными выше в п.1\r\n",
+    "Классы п.1 и п.2 должны лежать в .py файл(e/лах)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 1,
+   "id": "29382a0d-0a5b-48c3-af61-a07a59cdec82",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import numpy as np\n",
+    "koef1 = [2, 3.5, 5, 6.5, 8]\n",
+    "    \n",
+    "koef2 = [1, 2, 3, 4, 5]\n",
+    "\n",
+    "koef3 = [2, 3, 4, 5, 6]\n",
+    "class TurGas:\n",
+    "    def __init__(self, CH4=0, C2H6=0, C3H8=0, C4H10=0, C5H12=0, N2=0, CO2=0, O2=0, CO=0, H2=0):\n",
+    "\n",
+    "        self.CH4 = CH4\n",
+    "        self.C2H6 = C2H6\n",
+    "        self.C3H8 = C3H8\n",
+    "        self.C4H10 = C4H10\n",
+    "        self.C5H12 = C5H12\n",
+    "        self.N2 = N2\n",
+    "        self.CO2 = CO2\n",
+    "        self.O2 = O2\n",
+    "        self.CO = CO\n",
+    "        self.H2 = H2\n",
+    "        self.Qnp = 358.2 * CH4 + 637.46 * C2H6 + 860.05 * C3H8 + 1185.8 * C4H10\n",
+    "        self.CnHm = [CH4, C2H6, C3H8, C4H10, C5H12]\n",
+    "        \n",
+    "    def compute_Qnp(self):\n",
+    "        return (358.2*self.CH4 + 637.46*self.C2H6 + 860.05*self.C3H8 + 1185.8*self.C4H10)*1000\n",
+    "    \n",
+    "    def compute_V0(self):\n",
+    "        return 0.0476*(sum((np.array(koef1))*(np.array(self.CnHm)).tolist()))\n",
+    "    \n",
+    "    def compute_V0_N2(self):\n",
+    "        return 0.79*self.compute_V0() + 0.01*self.N2\n",
+    "\n",
+    "    def compute_V0_RO2(self):\n",
+    "        return 0.01*(self.CO2 + sum((np.array(koef2))*(np.array(self.CnHm)).tolist()))\n",
+    "    \n",
+    "    def compute_V0_H2O(self):\n",
+    "        return 0.01*(sum((np.array(koef3))*(np.array(self.CnHm)).tolist()) + 1.61*self.compute_V0())\n",
+    "    \n",
+    "    def compute_V_H2O(self, Ne, KPD, G_g, density_g): \n",
+    "        return self.compute_V0_H2O() + 0.0161*(self.compute_alpfa(Ne, KPD, G_g, density_g) - 1)*self.compute_V0()\n",
+    "    \n",
+    "    def compute_V_g(self, Ne, KPD, G_g, density_g):\n",
+    "        return self.compute_V0_RO2() + self.compute_V0_N2() + self.compute_V_H2O(Ne, KPD, G_g, density_g) + (self.compute_alpfa(Ne, KPD, G_g, density_g) - 1) * self.compute_V0()\n",
+    "    \n",
+    "    def compute_c_CO2(self, Tg):\n",
+    "        return 4.1868*(4.5784*10**(-11)*Tg**3 - 1.51719*10**(-7)*Tg**2 + 2.50113*10**(-4)*Tg + 0.382325)\n",
+    "    \n",
+    "    def compute_c_N2(self, Tg):\n",
+    "        return 4.1868*(-2.24553*10**(-11)*Tg**3 + 4.85082*10**(-8)*Tg**2 - 2.90598*10**(-6)*Tg + 0.309241)\n",
+    "    \n",
+    "    def compute_c_H2O(self, Tg):\n",
+    "        return 4.1868*(-2.10956*10**(-11)*Tg**3 + 4.9732*10**(-8)*Tg**2 + 2.60629*10**(-5)*Tg + 0.356691)\n",
+    "    \n",
+    "    def compute_c_air(self, Tg):\n",
+    "        return 4.1868*(-2.1717*10**(-11)*Tg**3 + 4.19344*10**(-8)*Tg**2 + 8.00891*10**(-6)*Tg + 0.315027)\n",
+    "    \n",
+    "    def compute_h_gas0(self, Tg, Ne, KPD, G_g, density_g):\n",
+    "        return ((self.compute_V0_RO2()*self.compute_c_CO2(Tg) + self.compute_V0_N2()*self.compute_c_N2(Tg) + self.compute_V_H2O(Ne, KPD, G_g, density_g)*self.compute_c_H2O(Tg))*Tg)*1000\n",
+    "    \n",
+    "    def compute_h_air0(self, Tg):\n",
+    "        return (self.compute_V0()*self.compute_c_air(Tg)*Tg)*1000\n",
+    "    \n",
+    "    def compute_h_gas(self, Tg, Ne, KPD, G_g, density_g): \n",
+    "        return (self.compute_h_gas0(Tg, Ne, KPD, G_g, density_g) + (self.compute_alpfa(Ne, KPD, G_g, density_g) - 1)*self.compute_h_air0(Tg))*1000\n",
+    "    \n",
+    "    def compute_B_tg(self, Ne, KPD):\n",
+    "        return Ne/( KPD*self.compute_Qnp())\n",
+    "    \n",
+    "    def compute_alpfa(self, Ne, KPD, G_g, density_g):\n",
+    "        return (G_g/density_g*self.compute_B_tg(Ne,  KPD) - 1)*density_g/(1.293*self.compute_V0())\n",
+    "    \n",
+    "    def compute_I_gas(self, Tg, Ne, KPD, G_g, density_g):\n",
+    "        return self.compute_B_tg(Ne,  KPD)*self.compute_h_gas(Tg, Ne, KPD, G_g, density_g)/G_g\n",
+    "    \n",
+    "    \n"
+   ]
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 3 (ipykernel)",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.11.8"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 5
+}

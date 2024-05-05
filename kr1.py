@@ -1,440 +1,884 @@
-import iapws
+from typing import List, Tuple, Optional
 from iapws import IAPWS97 as gas
+from iapws import IAPWS97
 import matplotlib.pyplot as plt
 import numpy as np
-import math as m
+import math
 
 MPa = 10 ** 6
 kPa = 10 ** 3
 unit = 1 / MPa
 to_kelvin = lambda x: x + 273.15 if x else None
 
-import iapws
-from iapws import IAPWS97 as gas
-import matplotlib.pyplot as plt
-import numpy as np
-import math as m
+internal_efficiency = 0.85
+mechanical_efficiency = 0.994
+generator_efficiency = 0.99
 
-MPa = 10 ** 6
-kPa = 10 ** 3
-unit = 1 / MPa
-to_kelvin = lambda x: x + 273.15 if x else None
 
-class Part_1:
+#Part 1
 
-    def __init__(self,p0,t0,p_middle,t_middle,pk,t_feed_water,electrical_power,internal_efficiency,
-                mechanical_efficiency,generator_efficiency,p_feed_water,n,H_0,ro):
-        
-        self.p0 = p0 * MPa
-        self.t0 = t0
-        self.p_middle = p_middle * MPa
-        self.t_middle = t_middle
-        self.pk = pk * kPa
-        self.t_feed_water = t_feed_water
-        self.electrical_power = electrical_power * (10 ** 6)
-        self.internal_efficiency = internal_efficiency
-        self.mechanical_efficiency = mechanical_efficiency
-        self.generator_efficiency = generator_efficiency
-        self.p_feed_water = p_feed_water
-        self.piso = []
-        self.Thiso = []
-        self.Tsiso = []
-        self.Graf_c = None
-        
-        
-        self.ro = ro
+def f_delta_p0(p0):
+    delta_p0 = 0.05 * p0
+    return delta_p0
 
-        self.H_0 = H_0
-        self.n = n
-        
-        
-    def avg_diameter_(self, avg_diameter):
-        self.avg_diameter = avg_diameter
-        return self.avg_diameter
-        # погрешности
-    def delta_p0(self):
-        return 0.05 * self.p0
+def f_delta_p_middle(p_middle):
+    delta_p_middle = 0.1 * p_middle
+    return delta_p_middle
+
+def f_delta_p_1(p_middle):
+    delta_p_1 = 0.03 * p_middle
+    return delta_p_1
+
+def f_real_p0(p0):
+    delta_p0 = f_delta_p0(p0)
+    real_p0 = p0 - delta_p0
+    return real_p0
+
+def f_real_p1t(p_middle):
+    delta_p_middle = f_delta_p_middle(p_middle)
+    real_p1t = p_middle + delta_p_middle
+    return real_p1t
+
+def f_real_p_middle(p_middle):
+    delta_p_1 = f_delta_p_1(p_middle)
+    real_p_middle = p_middle - delta_p_1
+    return real_p_middle
+
+def f__point_0(p0, t0):
+    _point_0 = gas(P = p0 * unit, T=to_kelvin(t0))
+    return _point_0
+
+def f_point_0(p0, t0):
+    delta_p0 = f_delta_p0(p0)
+    _point_0 = f__point_0(p0, t0)
+    real_p0=f_real_p0(p0)
+    point_0 = gas(P=real_p0 * unit, h=_point_0.h)
+    return _point_0
+
+def f_point_1t(p_middle,p0, t0):
+    real_p1t = f_real_p1t(p_middle)
+    _point_0 = f__point_0(p0, t0)
+    point_1t = gas(P=real_p1t * unit, s=_point_0.s)
+    return point_1t
+
+def f_hp_heat_drop(p0, t0,p_middle):
+    _point_0 = f__point_0(p0, t0)
+    point_1t = f_point_1t(p_middle,p0, t0)    
+    hp_heat_drop = (_point_0.h - point_1t.h) * internal_efficiency
+    return hp_heat_drop
+
+def f_h_1(p0, t0, p_middle):
+    point_0 = f_point_0(p0, t0)
+    hp_heat_drop = f_hp_heat_drop(p0, t0,p_middle)
+    h_1 = point_0.h - hp_heat_drop
+    return h_1
+
+def f_point_1(p0, t0,p_middle):
+    real_p1t = f_real_p1t(p_middle)
+    h_1 = f_h_1(p0, t0,p_middle)
+    point_1 = gas(P=real_p1t * unit, h=h_1)
+    return point_1
+
+def f__point_middle(p_middle, t_middle):
+    _point_middle = gas(P=p_middle * unit, T=to_kelvin(t_middle))
+    return _point_middle
+
+def f_point_middle(p_middle, t_middle):
+    real_p_middle=f_real_p_middle(p_middle)
+    _point_middle=f__point_middle(p_middle, t_middle)
+    point_middle = gas(P=real_p_middle * unit, h=_point_middle.h)
+    return point_middle
+
+def f_point_2t(pk,p_middle, t_middle):
+    _point_middle=f__point_middle(p_middle, t_middle)
+    point_2t = gas(P=pk * unit, s=_point_middle.s)
+    return point_2t
+
+def f_lp_heat_drop(pk,p_middle, t_middle):
+    _point_middle=f__point_middle(p_middle, t_middle)
+    point_2t=f_point_2t(pk,p_middle, t_middle)
+    lp_heat_drop = (_point_middle.h - point_2t.h) * internal_efficiency
+    return lp_heat_drop
+
+def f_h_2(pk,p_middle, t_middle):
+    point_middle=f_point_middle(p_middle, t_middle)
+    lp_heat_drop=f_lp_heat_drop (pk,p_middle, t_middle)
+    h_2 = point_middle.h - lp_heat_drop
+    return h_2
+
+def f_point_2(pk,p_middle, t_middle):
+    h_2=f_h_2(pk,p_middle, t_middle)
+    point_2 = gas(P=pk * unit, h=h_2)
+    return point_2
+
+def f_efficiency_hp(p0, t0,p_middle):
+    _point_0 = f__point_0(p0, t0)
+    point_1 = f_point_1(p0, t0, p_middle)
+    point_1t = f_point_1t(p_middle,p0, t0)
+    efficiency_hp = (_point_0.h - point_1.h) / (_point_0.h - point_1t.h)
+    return efficiency_hp
+
+def f_efficiency_lp(pk,p_middle, t_middle):
+    _point_middle=f__point_middle(p_middle, t_middle)
+    point_2 = f_point_2(pk,p_middle, t_middle)
+    point_2t = f_point_2t(pk,p_middle, t_middle)
+    efficiency_lp = (_point_middle.h - point_2.h) / (_point_middle.h - point_2t.h)
+    return efficiency_lp
+
+def f_point_k_water(pk):
+    point_k_water = gas(P=pk * unit, x=0)
+    return point_k_water
+
+def f_point_feed_water(p_feed_water, t_feed_water):
+    point_feed_water = gas(P=p_feed_water * unit, T=to_kelvin(t_feed_water))
+    return point_feed_water
+
+def f_numenator_without(pk,p_middle, t_middle):
+    point_2 = f_point_2(pk,p_middle, t_middle)
+    _point_middle=f__point_middle(p_middle, t_middle)
+    point_k_water=f_point_k_water(pk)
+    numenator_without = point_2.T * (_point_middle.s - point_k_water.s)
+    return numenator_without
+
+def f_denumenator_without(p_middle, t_middle,p0, t0, pk):
+    point_0 = f_point_0(p0, t0)
+    point_1t = f_point_1t(p_middle,p0, t0)
+    point_middle=f_point_middle(p_middle, t_middle)
+    point_k_water=f_point_k_water(pk)
+    denumenator_without = (point_0.h - point_1t.h) + (point_middle.h - point_k_water.h)
+    return denumenator_without
+
+def f_without_part(p_middle, t_middle,p0, t0, pk):
+    numenator_without=f_numenator_without(pk,p_middle, t_middle)
+    denumenator_without=f_denumenator_without(p_middle, t_middle,p0, t0, pk)
+    without_part = 1 - (numenator_without / denumenator_without)
+    return without_part
+
+def f_numenator_infinity(pk,p_middle, t_middle, p_feed_water, t_feed_water):
+    point_2 = f_point_2(pk,p_middle, t_middle)
+    _point_middle=f__point_middle(p_middle, t_middle)
+    point_feed_water=f_point_feed_water(p_feed_water, t_feed_water)
+    numenator_infinity = point_2.T * (_point_middle.s - point_feed_water.s)
+    return numenator_infinity
+
+def f_denumenator_infinity(p0, t0,p_middle, t_middle,p_feed_water, t_feed_water):
+    point_0 = f_point_0(p0, t0)
+    point_1t = f_point_1t(p_middle,p0, t0)
+    point_middle=f_point_middle(p_middle, t_middle)
+    point_feed_water=f_point_feed_water(p_feed_water, t_feed_water)
+    denumenator_infinity = (point_0.h - point_1t.h) + (point_middle.h - point_feed_water.h)
+    return denumenator_infinity
+
+def f_infinity_part(pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water):
+    numenator_infinity=f_numenator_infinity(pk,p_middle, t_middle, p_feed_water, t_feed_water)
+    denumenator_infinity=f_denumenator_infinity(p0, t0,p_middle, t_middle,p_feed_water, t_feed_water)
+    infinity_part = 1 - (numenator_infinity / denumenator_infinity)
+    return infinity_part
+
+def f_ksi_infinity(pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water):
+    without_part=f_without_part(p_middle, t_middle,p0, t0, pk)
+    infinity_part=f_infinity_part(pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water)
+    ksi_infinity = 1 - (without_part / infinity_part)
+    return ksi_infinity
+
+def f_coeff(pk,p_middle, t_middle,p_feed_water, t_feed_water):
+    point_feed_water=f_point_feed_water(p_feed_water, t_feed_water)
+    point_2 = f_point_2(pk,p_middle, t_middle)
+    coeff = (point_feed_water.T - point_2.T) / (to_kelvin(374.2) - point_2.T)
+    return coeff
+
+def f_ksi(pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water):
+    ksi_infinity=f_ksi_infinity(pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water)
+    ksi = 0.89 * ksi_infinity
+    return ksi
+def f_eff_num(p0, t0,pk,p_middle, t_middle):
+    hp_heat_drop=f_hp_heat_drop(p0, t0,p_middle)
+    lp_heat_drop=f_lp_heat_drop(pk,p_middle, t_middle)
+    eff_num = hp_heat_drop + lp_heat_drop
+    return eff_num
+def f_eff_denum(p0, t0,p_middle, t_middle,pk):
+    hp_heat_drop=f_hp_heat_drop(p0, t0,p_middle)
+    point_middle=f_point_middle(p_middle, t_middle)
+    point_k_water=f_point_k_water(pk)
+    eff_denum = hp_heat_drop + (point_middle.h - point_k_water.h)
+    return eff_denum
+
+def f_efficiency(pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water):
+    eff_num=f_eff_num(p0, t0,pk,p_middle, t_middle)
+    eff_denum=f_eff_denum(p0, t0,p_middle, t_middle,pk)
+    ksi=f_ksi(pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water)
+    efficiency = (eff_num / eff_denum) * (1 / (1 - ksi))
+    return efficiency
+
+def f_estimated_heat_drop(pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water):
+    point_0 = f_point_0(p0, t0)
+    point_feed_water=f_point_feed_water(p_feed_water, t_feed_water)
+    point_middle=f_point_middle(p_middle, t_middle)
+    efficiency=f_efficiency(pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water)
+    point_1 = f_point_1(p0, t0, p_middle)
+    estimated_heat_drop = efficiency * ((point_0.h - point_feed_water.h) + (point_middle.h - point_1.h))
+    return estimated_heat_drop
+
+def f_inlet_mass_flow(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water):
+    estimated_heat_drop=f_estimated_heat_drop(pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water)
+    inlet_mass_flow = electrical_power / (estimated_heat_drop * 1000 * mechanical_efficiency * generator_efficiency)
+    return inlet_mass_flow
+
+def f_condenser_mass_flow(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water):
+    point_2 = f_point_2(pk,p_middle, t_middle)
+    point_k_water=f_point_k_water(pk)
+    efficiency=f_efficiency(pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water)
+    condenser_mass_flow = (electrical_power /((point_2.h - point_k_water.h) * 1000 * mechanical_efficiency * generator_efficiency)* ((1 / efficiency) - 1))
+    return condenser_mass_flow
+
+
+#Отрисовка легенды
+def legend_without_duplicate_labels(ax: plt.Axes) -> None:
     
-    def delta_p_middle(self):
-        return 0.1 * self.p_middle
-    
-    def delta_p_1(self):
-        return 0.03 * self.p_middle 
-        
-    def Graf_coef(self,Graf_c):
-        self.Graf_c = Graf_c
-        return self.Graf_c
-       
-        #параметры пара в точках
-        
-    def real_p0(self):
-        return self.p0 - self.delta_p0()
-    
-    def real_p1t(self):
-        return self.p_middle + self.delta_p_middle()
-    
-    def real_p_middle(self):
-        return self.p_middle - self.delta_p_1()
-    
-    
-        #параметры начальных точек
-        
-    def _point_0(self):
-        return gas(P = self.p0 * unit, T=to_kelvin(self.t0))
-    
-    def point_0(self):
-        return gas(P = self.real_p0() * unit, h=(self._point_0()).h)
-    
-    def point_1t(self):
-        return gas(P = self.real_p1t() * unit, s=self._point_0().s)
-    
-    def point_1(self):
-        h_1 = self.point_0().h - self.hp_heat_drop()
-        return gas(P=self.real_p1t() * unit, h=h_1)
-    
-    def hp_heat_drop(self):
-        return (self._point_0().h - self.point_1t().h) * self.internal_efficiency
-    
-    
-        #параметры промперегева
-        
-    def _point_middle(self):
-        return gas(P=self.p_middle * unit, T=to_kelvin(self.t_middle))
-    
-    def point_middle(self):
-        return gas(P=self.real_p_middle() * unit, h=self._point_middle().h)
-    
-    def point_2t(self):
-        return gas(P=self.pk * unit, s=self._point_middle().s)
-    
-    def lp_heat_drop(self):
-        return (self._point_middle().h - self.point_2t().h) * self.internal_efficiency
+    handles, labels = ax.get_legend_handles_labels()
+    unique = [(h, l) for i, (h, l) in enumerate(zip(handles, labels)) if l not in labels[:i]]
+    ax.legend(*zip(*unique))
+
+#Отрисовка процесса расширения по точкам    
+def plot_process(ax: plt.Axes, points: List[IAPWS97], **kwargs) -> None:
+
+    ax.plot([point.s for point in points], [point.h for point in points], **kwargs)
+
+#координаты изобары в hs осях    
+def get_isobar(point: IAPWS97) -> Tuple[List[float], List[float]]:
    
-    def point_2(self):
-        return gas(P=self.pk * unit, h=self.point_middle().h - self.lp_heat_drop())
-    
-    def efficiency_hp(self):
-        return (self._point_0().h - self.point_1().h) / (self._point_0().h - self.point_1t().h)
-    
-    def efficiency_lp(self):
-        return (self._point_middle().h - self.point_2().h) / (self._point_middle().h - self.point_2t().h)
-    
-    
-    #расчет точек питательной воды
-        
-    def point_k_water(self):
-        return (gas(P=self.pk * unit, x=0))
-    
-    def point_feed_water(self):
-        return gas(P=self.p_feed_water , T=to_kelvin(self.t_feed_water))
-    
-    def coeff(self):
-        return (self.point_feed_water().T - self.point_2().T) / (to_kelvin(374.2) - self.point_2().T)
-    
-    def efficiency(self):
-        
-        numenator_without = self.point_2().T * (self._point_middle().s - self.point_k_water().s)
-        denumenator_without = (self.point_0().h - self.point_1t().h) + (self.point_middle().h - self.point_k_water().h)
-        without_part = 1 - (numenator_without / denumenator_without)
-        
-        denumenator_infinity =(self.point_0().h - self.point_1t().h) + (self.point_middle().h - self.point_feed_water().h)
-        numenator_infinity = self.point_2().T * (self._point_middle().s - self.point_feed_water().s)
-        infinity_part = 1 - (numenator_infinity / denumenator_infinity)
-        
-        ksi_infinity = 1 - (without_part / infinity_part)
-        
-        eff_num = self.hp_heat_drop() + self.lp_heat_drop()
-        
-        eff_denum = self.hp_heat_drop() + (self.point_middle().h - self.point_k_water().h)
-        
-        ksi = self.Graf_c * ksi_infinity
+    s = point.s
+    s_values = np.arange(s * 0.9, s * 1.1, 0.2 * s / 1000)
+    h_values = [gas(P=point.P, s=_s).h for _s in s_values]
+    return s_values, h_values
 
-        return  (eff_num / eff_denum) * (1 / (1 - ksi))
+#координаты изотермы для пара в hs осях
+def _get_isoterm_steam(point: IAPWS97) -> Tuple[List[float], List[float]]:
+   
+    t = point.T
+    p = point.P
+    s = point.s
+    s_max = s * 1.2
+    s_min = s * 0.8
+    p_values = np.arange(p * 0.8, p * 1.2, 0.4 * p / 1000)
+    h_values = np.array([gas(P=_p, T=t).h for _p in p_values])
+    s_values = np.array([gas(P=_p, T=t).s for _p in p_values])
+    mask = (s_values >= s_min) & (s_values <= s_max)
+    return s_values[mask], h_values[mask]
 
-    def inlet_mass_flow(self):
-        estimated_heat_drop = self.efficiency() * ((self.point_0().h - self.point_feed_water().h) + (self.point_middle().h - self.point_1().h))
-        self.G_0 = self.electrical_power / (estimated_heat_drop * 1000 * self.mechanical_efficiency * self.generator_efficiency)
-        return  self.G_0
+#координаты изотермы для влажного пара в hs осях
+def _get_isoterm_two_phases(point: IAPWS97) -> Tuple[List[float], List[float]]:
     
-    def condenser_mass_flow(self):
-        return  (
-    self.electrical_power /
-    ((self.point_2().h - self.point_k_water().h) * 1000 * self.mechanical_efficiency * self.generator_efficiency) * ((1 / self.efficiency()) - 1)
-        )
-    
-    def P_iso(self,p,shag):
-        self.piso=[]
-        for i in shag:
-            self.piso = self.piso + [gas(P = p,s=i).h]
-        return self.piso
-    
-    def T_iso(self,point):
-        self.Tsiso=[]
-        self.Thiso=[]
-        T=point.T
-        P=point.P*(10**6) 
-        for i in range(int(P*0.8),int(P*1.3),int((P*1.3-P*0.8)/10)):
-            self.Tsiso = self.Tsiso + [gas(T = T,P=i/(10**6)).s]
-            self.Thiso = self.Thiso + [gas(T = T,P=i/(10**6)).h]
-        return self.Thiso,self.Tsiso
+    x = point.x
+    p = point.P
+    x_values = np.arange(x * 0.9, min(x * 1.1, 1), (1 - x) / 1000)
+    h_values = np.array([gas(P=p, x=_x).h for _x in x_values])
+    s_values = np.array([gas(P=p, x=_x).s for _x in x_values])
+    return s_values, h_values
 
-    def x_iso(self,x,P):
-        P=P
-        self.xhiso=[]
-        self.xsiso=[]
-        for i in range(int(P),int(P*10**3*5),int((P*10**3*5/25))):
-            self.xhiso = self.xhiso + [gas(x = x,P=i/(10**6)).h]
-            self.xsiso = self.xsiso + [gas(x = x,P=i/(10**6)).s]
-        return self.xhiso,self.xsiso
- 
-    def plot(self):
-        
-        plt.plot([self._point_0().s,self.point_0().s,self.point_1().s],[self._point_0().h,self.point_0().h,self.point_1().h], color="orange", linewidth=3,label = 'Процесс Расширения')
-        plt.plot([self._point_middle().s,self.point_middle().s,self.point_2().s], [self._point_middle().h,self.point_middle().h,self.point_2().h], color="orange", linewidth=3)
-        plt.plot([self.point_1().s, self._point_middle().s], [self.point_1().h, self._point_middle().h], color="orange", linewidth=3,linestyle=":")
-        plt.xlabel(r"S, $\frac{кДж}{кг * K}$", fontsize=14)
-        plt.ylabel(r"h, $\frac{кДж}{кг}$", fontsize=14)
-        plt.grid()
+#координаты изотермы в hs осях
+def get_isoterm(point) -> Tuple[List[float], List[float]]:
 
-        plt.plot([self._point_0().s, self.point_1t().s], [self._point_0().h, self.point_1t().h], color="black", linewidth=3,linestyle = ":")
-        plt.plot([self._point_middle().s, self.point_2t().s], [self._point_middle().h, self.point_2t().h], color="black", linewidth=3,linestyle = ":")
+    if point.phase == 'Two phases':
+        return _get_isoterm_two_phases(point)
+    return _get_isoterm_steam(point)
 
-        plt.plot(self.point_1t().s, self.point_1t().h, marker='.', color="black")
-        plt.plot(self.point_middle().s, self.point_middle().h, marker='.', color="black")
-        plt.plot(self.point_0().s, self.point_0().h, marker='.', color="black")
-        plt.plot(self._point_0().s, self._point_0().h, marker='.', color="black")
-        plt.plot(self._point_middle().s, self._point_middle().h, marker='.', color="black")
-        plt.plot(self.point_2t().s, self.point_2t().h, marker='.', color="black")
-        plt.plot(self.point_1().s, self.point_1().h, marker='.', color="black")
-        plt.plot(self.point_2().s, self.point_2().h, marker='.', color="black")
-           
-        plt.text(self.point_1t().s+0.05,self.point_1t().h,"1t")
-        plt.text(self.point_middle().s-0.09,self.point_middle().h,"пп")
-        plt.text(self.point_0().s-0.07,self.point_0().h,"0")
-        plt.text(self._point_0().s+0.05,self._point_0().h,"0`")
-        plt.text(self._point_middle().s+0.05,self._point_middle().h,"пп`")
-        plt.text(self.point_2t().s+0.05,self.point_2t().h,"kt")
-        plt.text(self.point_1().s+0.05,self.point_1().h,"1")
-        plt.text(self.point_2().s+0.05,self.point_2().h,"k")
-        
-        plt.plot([6.1,6.2,6.3,6.4],self.P_iso(23,[6.1,6.2,6.3,6.4]), color="c")
-        plt.plot([6.2,6.3,6.4,6.5],self.P_iso(((self.real_p0()*unit)),(([6.2,6.3,6.4,6.5]))), color="c")
-        plt.plot([6.2,6.3,6.4,6.5,6.7,6.9,7.2],self.P_iso(((self.real_p1t()*unit)),(([6.2,6.3,6.4,6.5,6.7,6.9,7.2]))), color="c")        
-        plt.plot([6.5,6.7,6.9,7.2,7.3,7.4,7.5],self.P_iso(((self.real_p_middle()*unit)),(([6.5,6.7,6.9,7.2,7.3,7.4,7.5]))), color="c")       
-        plt.plot([6.5,6.7,6.9,7.2,7.3,7.4,7.5],self.P_iso(((3.5)),(([6.5,6.7,6.9,7.2,7.3,7.4,7.5]))), color="c",label = 'Изобара')       
-        plt.plot([7.2,7.3,7.4,7.5,7.7,8,8.2],self.P_iso(((self.pk*unit)),(([7.2,7.3,7.4,7.5,7.7,8,8.2]))), color="c")
-        
-        plt.plot(self.T_iso(self.point_0())[1],self.T_iso(self.point_0())[0], color="g",label = 'Изотерма')
-        plt.plot(self.T_iso(self._point_0())[1],self.T_iso(self._point_0())[0], color="g")
-        plt.plot(self.T_iso(self.point_1())[1],self.T_iso(self.point_1())[0], color="g")
-        plt.plot(self.T_iso(self.point_1t())[1],self.T_iso(self.point_1t())[0], color="g")
-        plt.plot(self.T_iso(self.point_middle())[1],self.T_iso(self.point_middle())[0], color="g")
-        plt.plot(self.T_iso(self._point_middle())[1],self.T_iso(self._point_middle())[0], color="g")
+#Отрисовка изобары и изотермы
+def plot_isolines(ax: plt.Axes, point: IAPWS97) -> None:
+    
+    s_isobar, h_isobar = get_isobar(point)
+    s_isoterm, h_isoterm = get_isoterm(point)
+    ax.plot(s_isobar, h_isobar, color='green', label='Изобара')
+    ax.plot(s_isoterm, h_isoterm, color='blue', label='Изотерма')
 
-        plt.plot(self.x_iso(self.point_2t().x,self.pk)[1],self.x_iso(self.point_2t().x,self.pk)[0],color="grey",label = 'Линия сухости')
-        plt.plot(self.x_iso(self.point_2().x,self.pk)[1],self.x_iso(self.point_2().x,self.pk)[0],color="grey")
-        plt.plot(self.x_iso(1,self.pk)[1],self.x_iso(1,self.pk)[0],color="grey")
-        
-        plt.text(self.point_2().s-2,self.point_2().h+100,"X = 0.852")
-        plt.text(self.point_2t().s-0.7,self.point_2().h+200,"X = 0.938")
-        plt.text(self.point_2().s-1.5,self.point_2().h+400,"X = 1")        
-     
-        plt.legend()
-        plt.show()
-################################################################
+#Отрисовка точки на hs-диаграмме    
+def plot_points(ax: plt.Axes, points: List[IAPWS97]) -> None:
+    
+    for point in points:
+        ax.scatter(point.s, point.h, s=50, color="red")
+        plot_isolines(ax, point)
 
-    def speed(self):
-        self.u = m.pi * self.avg_diameter * self.n 
-        return self.u
+#координаты линии с постоянной степенью сухости в hs осях
+def get_humidity_constant_line(
+    point: IAPWS97,
+    max_p: float,
+    min_p: float,
+    x: Optional[float]=None
+) -> Tuple[List[float], List[float]]:
+   
+    _x = x if x else point.x
+    p_values = np.arange(min_p, max_p, (max_p - min_p) / 1000)
+    h_values = np.array([gas(P=_p, x=_x).h for _p in p_values])
+    s_values = np.array([gas(P=_p, x=_x).s for _p in p_values])
+    return s_values, h_values
 
-    def parametr_for_nozzle(self):
-        
-        self.speed()
-        self.inlet_mass_flow()
-        
-        self.Ho_c = (1 - self.ro) * self.H_0
-        self.Ho_p = self.H_0 * self.ro
-        self.h1t = self.point_0().h - self.Ho_c
-        self.c1t = m.sqrt(2 * self.Ho_c * 1000)
-        self.point_1_t = gas(h = self.h1t, s = self.point_0().s)
-        k = 1.4
-        self.a1t = m.sqrt(k * (self.point_1_t.P * MPa) * self.point_1_t.v)
-        self.M1t = self.c1t / self.a1t
-        self.mu1 = 0.97
-        self.F1_ = (self.G_0 * self.point_1_t.v) / (self.mu1 * self.c1t)
-        return self.Ho_c, self.Ho_p, self.h1t, self.c1t, self.a1t, self.M1t, self.F1_, self.point_1_t
-    
-    def M1t_(self):
-        self.parametr_for_nozzle()
-        return self.M1t
-    
-    def selection_sopl(self,alpha0,alpha1_e,t_opt,M1t_,b1,f1,I1_min,W1_min):
-        
-        self.alpha0 = alpha0
-        self.alpha1_e = alpha1_e
-        self.t_opt = t_opt
-        self.M1t_ = M1t_
-        self.b1 = b1
-        self.f1 = f1
-        self.I1_min = I1_min
-        self.W1_min = W1_min
-        
-        return self.alpha1_e, self.alpha0, self.t_opt, self.M1t_, self.b1, self.f1, self.I1_min ,self.W1_min
-        
-    def obrobotka_nozzle(self):
-        
-        self.parametr_for_nozzle()
-                 
-        self.el1 = self.F1_ / (m.pi * self.avg_diameter * m.sin(m.radians(self.alpha1_e)))
-        self.e_opt = 4 * m.sqrt(self.el1)
-        if self.e_opt > 0.85:
-            self.e_opt = 0.85
-            
-        self.l1 = self.el1 / self.e_opt
-        self.mu1 = 0.982 - 0.005 * ((self.b1 * 10**-3) / self.l1)
-        self.F1 = (self.G_0 * self.point_1_t.v) / (self.mu1 * self.c1t)
-        self.t1opt_ = 0.75
-        self.z1 = (m.pi * self.avg_diameter * self.e_opt) / (self.b1 * 10**-3  * self.t1opt_)  
-        self.z_1 = round(self.z1+0.5)-1 if (round(self.z1) % 2) else round(self.z1+0.5)
-        self.t1opt = (m.pi * self.avg_diameter * self.e_opt) / (self.b1 * 10**-3  * self.z_1)
-        return self.el1, self.e_opt, self.l1, self.mu1, self.F1, self.z_1, self.t1opt, self.z1
-    
-    def nozzle_atlas(self,ksi_noz,ksi_sum):
-        
-        self.ksi_noz = ksi_noz
-        self.ksi_sum = ksi_sum
-    
-    def nozzle_atlas_obr(self):
-        
-        self.obrobotka_nozzle()
-        
-        self.alpha_ust = self.alpha1_e - 16 * (self.t1opt - 0.75) + 23.1 
-        self.b1_l1 = (self.b1 * 10 ** -3) / self.l1
-        self.ksi_end_noz = self.ksi_sum - self.ksi_noz 
-        self.fi = m.sqrt(1 - self.ksi_sum)  
-        
-        self.fi_ = 0.98 - 0.008 * (self.b1 * 10 ** -3 / self.l1) 
-        
-        self.delta_fi = (self.fi - self.fi_) / self.fi 
-        self.c_1 = self.c1t * self.fi 
-        self.alpha_1 = m.degrees(m.asin((self.mu1/self.fi)* m.sin(m.radians(self.alpha1_e))))
-        return self.alpha_ust, self.b1_l1, self.ksi_end_noz, self.fi, self.fi_, self.delta_fi, self.c_1, self.alpha_1
-    
-#расчет параметров для выбора рабочей решетки
-    def for_selection(self):
-        
-        self.nozzle_atlas_obr()
-        
-        self.w_1 = m.sqrt(self.c_1 ** 2 + self.u ** 2 - 2 * self.c_1 * self.u * m.cos(m.radians(self.alpha_1)))
-        self.beta_1 = m.degrees(m.atan(m.sin(m.radians(self.alpha_1)) / (m.cos(m.radians(self.alpha_1)) - self.u / self.c_1)))
-        self.delta_Hc = self.c1t ** 2 / 2 * (1 - self.fi ** 2) / 1000  
-        self.h1 = self.point_1_t.h + self.delta_Hc
-        self.point_1_ = gas(P = self.point_1_t.P, h = self.h1)  
-        self.h2t = self.point_1_.h - self.Ho_p
-        self.point_2_t = gas(s = self.point_1_.s, h = self.h2t)
-        self.w2t = m.sqrt(2000 * self.Ho_p + self.w_1 ** 2)
-        self.delta = 0.004
-        self.l2 = self.l1 + self.delta  
-        self.k2 = 1.3
-        self.a2t = m.sqrt(self.k2 * (self.point_2_t.P * MPa) * self.point_2_t.v)
-        self.M2t = self.w2t / self.a2t
-        
-        return self.w_1, self.beta_1, self.point_1_, self.point_2_t, self.w2t, self.l2, self.a2t, self.M2t, self.delta_Hc
+#Отрисовка изолинии для степеней сухости на hs-диаграмме
+def plot_humidity_lines(ax: plt.Axes, points: List[IAPWS97]) -> None:
 
-    def Raboch_Resh(self):
-        self.for_selection()
-        print("betta_1 = " , self.beta_1 , "M2t = " ,self.M2t )
-    
-    def zd_b2(self,b2):
-        self.b2 = b2 
-        return self.b2
+    pressures = [point.P for point in points]
+    min_pressure = min(pressures) if min(pressures) > 700/1e6 else 700/1e6
+    max_pressure = max(pressures) if max(pressures) < 22 else 22
+    for point in points:
+        if point.phase == 'Two phases':
+            s_values, h_values = get_humidity_constant_line(point, max_pressure, min_pressure, x=1)
+            ax.plot(s_values, h_values, color="gray")
+            s_values, h_values = get_humidity_constant_line(point, max_pressure, min_pressure)
+            ax.plot(s_values, h_values, color="gray", label='Линия сухости')
+            ax.text(s_values[10], h_values[10], f'x={round(point.x, 2)}')
 
-    def selection_working(self,beta0,beta2_e,t_opt,M2t_,f2,I2_min,W2_min,b2_atl):
-        
-        self.for_selection()
-        self.b2_atl = b2_atl
-        self.beta0 = beta0
-        self.beta2_e = beta2_e
-        self.t2opt = t_opt
-        self.M2t_ = M2t_
-        self.f2 = f2
-        self.I2_min = I2_min
-        self.W2_min = W2_min
-        return self.beta0, self.beta2_e, self.t2opt, self.M2t_, self.f2, self.I2_min, self.W2_min, self.b2_atl
-    
-    def Spec_work(self):
-        
-        self.for_selection()
-        
-        self.mu2 = 0.965 - 0.01 * (self.b2 * 10 ** -3 / self.l2)
-        self.F2 = (self.G_0 * self.point_2_t.v) / (self.mu2 * self.w2t)
-        self.beta2_e = m.degrees(self.F2 / (self.e_opt * m.pi * self.avg_diameter * self.l2))
+#Построить изобары и изотермы для переданных точек. Если степень сухости у точки не равна 1, то построется
+#дополнительно линия соответствующей степени сухости            
+def plot_hs_diagram(ax: plt.Axes, points: List[IAPWS97]) -> None:
 
-        self.z2 = (m.pi * self.avg_diameter) / (self.b2 * 10 ** -3 * self.t2opt)
-        self.z_2 = round(self.z2+0.5)-1 if (round(self.z2) % 2) else round(self.z2+0.5)
-        self.t2opt = (m.pi * self.avg_diameter) / (self.b2 * 10 ** -3 * self.z2)
-        self.beta2_ust = self.beta2_e - 20.5 * (self.t2opt - 0.60) + 47.1
-        self.b2_l2 = (self.b2 * 10 ** -3) / self.l2  
-        return self.z_2, self.t2opt, self.beta2_ust, self.b2_l2 ,self.F2 ,self.beta2_e ,self.mu2
+    plot_points(ax, points)
+    plot_humidity_lines(ax, points)
+    ax.set_xlabel(r"S, $\frac{кДж}{кг * K}$", fontsize=14)
+    ax.set_ylabel(r"h, $\frac{кДж}{кг}$", fontsize=14)
+    ax.set_title("HS-диаграмма процесса расширения", fontsize=18)
+    ax.legend()
+    ax.grid()
+    legend_without_duplicate_labels(ax)
     
-    def proverka_resh(self):
-        
-        self.Spec_work()
-        
-        print("betta2_e = ", self.beta2_e)
-        
-        
-        
-    def b_l_and_M1t_nozzle(self):
-        
-        self.Spec_work()
-        
-        return self.b1_l1,self.M1t 
-        
-    def b_l_and_M2t_work(self):
-        
-        self.Spec_work()
-        
-        return self.b2_l2, self.M2t
-        
     
-    def working_atlas(self,ksi_grid,ksi_sum_g):
-        
-        self.ksi_grid = ksi_grid
-        self.ksi_sum_g = ksi_sum_g
-        
-        return self.ksi_grid,self.ksi_sum_g
     
-    def working_atlas_obr(self):
-        
-        self.Spec_work()
- 
-        self.ksi_end_grid = self.ksi_sum_g - self.ksi_grid
-        self.psi = m.sqrt(1 - self.ksi_sum_g)
-        self.psi_ = 0.96 - 0.014 * (self.b2 * 10 ** -3 / self.l2)
-        self.delta_psi = (self.psi - self.psi_) / self.psi
-        self.w_2 = self.w2t * self.psi
-        self.beta_2 = m.degrees(m.asin((self.mu2 / self.psi) * m.sin(m.radians(self.beta2_e))))
-        self.c_2 = m.sqrt(self.w_2 ** 2 + self.u ** 2 - 2 * self.w_2 * self.u * m.cos(m.radians(self.beta_2)))
-        self.alpha_2 = m.degrees(m.atan((m.sin(m.radians(self.beta_2))) / (m.cos(m.radians(self.beta_2)) - self.u / self.w_2)))
-        return self.ksi_end_grid, self.psi, self.psi_, self.delta_psi, self.beta_2, self.c_2,self.alpha_2, self.w_2
+############################################################################################################################ Part 2
 
-    #функция для посторения треугольников скоростей 
-    def construction_of_velocity_triangles(self):
-        
-        self.working_atlas_obr()
-        
-        sin_alpha_1 = m.sin(m.radians(self.alpha_1))
-        cos_alpha_1 = m.cos(m.radians(self.alpha_1))
-        sin_beta_2 = m.sin(m.radians(self.beta_2))
-        cos_beta_2 = m.cos(m.radians(self.beta_2))
+def f_u(avg_diameter, n):
+        u = 3.1415 * avg_diameter * n 
+        return u
+    #принимаем протность
+    
+ro=0.075
 
-        c1_plot = [[0, -self.c_1 * cos_alpha_1], [0, -self.c_1 * sin_alpha_1]]
-        u1_plot = [[-self.c_1 * cos_alpha_1, -self.c_1 * cos_alpha_1 + self.u], [-self.c_1 * sin_alpha_1, -self.c_1 * sin_alpha_1]]
-        w1_plot = [[0, -self.c_1 * cos_alpha_1 + self.u], [0, -self.c_1 * sin_alpha_1]]
-        w2_plot = [[0, self.w_2 * cos_beta_2], [0, -self.w_2 * sin_beta_2]]
-        u2_plot = [[self.w_2 * cos_beta_2, self.w_2 * cos_beta_2 - self.u], [-self.w_2 * sin_beta_2, -self.w_2 * sin_beta_2]]
-        c2_plot = [[0, self.w_2 * cos_beta_2 - self.u], [0, -self.w_2 * sin_beta_2]]
+def f_H0_c(ro,H_0):
+    H0_c = (1 - ro) * H_0
+    return H0_c
+
+def f_H0_p(ro,H_0):
+    H0_p = H_0 * ro
+    return H0_p
+
+def f_h_1t(ro,H_0,p0, t0):
+    H0_c=f_H0_c(ro,H_0)
+    point_0=f_point_0(p0, t0)
+    h_1t = point_0.h - H0_c/1000
+    return h_1t
+
+def f_c_1t(ro,H_0):
+    H0_c=f_H0_c(ro,H_0)
+    c_1t = (2 * H0_c)**(0.5)
+    return c_1t
+
+def f_point_1_t(ro,H_0,p0, t0):
+    h_1t=f_h_1t(ro,H_0,p0, t0)
+    point_0=f_point_0(p0, t0)
+    point_1_t = gas(h = h_1t, s = point_0.s)
+    return point_1_t
+
+        
+def f_a_1t(ro,H_0,p0, t0):
+    k=1.4
+    point_1_t = f_point_1_t(ro,H_0,p0, t0)
+    a_1t = math.sqrt(k * (point_1_t.P * MPa) * point_1_t.v)
+    return a_1t
+
+def f_M_1t(ro,H_0,p0, t0):
+    c_1t = f_c_1t(ro,H_0)
+    a_1t = f_a_1t(ro,H_0,p0, t0)
+    M_1t = c_1t / a_1t
+    return M_1t
+
+def f_F_1(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0):
+    mu__1 = 0.97
+    c_1t = f_c_1t(ro,H_0)
+    point_1_t = f_point_1_t(ro,H_0,p0, t0)
+    G_0 = f_inlet_mass_flow(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water)
+    F_1 = (G_0 * point_1_t.v) / (mu__1 * c_1t)
+    return F_1
+
+alpha_1e = 12
+
+def f_el_1(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter):
+    F_1=f_F_1(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0)
+    el_1 = F_1 / (3.1415 * avg_diameter * math.sin(math.radians(alpha_1e)))
+    return el_1
+
+def f_e_opt(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter):
+    el_1=f_el_1(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter)
+    e_opt = 4 * math.sqrt(el_1)
+    if e_opt > 0.85: e_opt = 0.85
+    return e_opt
+
+def f_l_1(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter):
+    el_1=f_el_1(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter)
+    e_opt=f_e_opt(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter)
+    l_1 = el_1 / e_opt
+    return l_1
+
+b_1=100* 10**-3
+
+def f_mu_1(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1,avg_diameter):
+    l_1=f_l_1(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter)
+    mu_1 = 0.982 - 0.005 * (b_1  / l_1)
+    return mu_1
+
+alpha_0=90
+t_1_opt = 0.75
+
+def f_z_1(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,b_1,t_1_opt):
+    el_1=f_el_1(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter)
+    e_opt = f_e_opt(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter)
+    z__1 = (3.1415 * avg_diameter * e_opt) / (b_1 * t_1_opt) 
+    z_1 = round(z__1+0.5)-1 if (round(z__1) % 2) else round(z__1+0.5)
+    return z_1
+
+def f_t_1opt(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,b_1,
+             t_1_opt):
+    e_opt=f_e_opt(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter)
+    z_1 = f_z_1(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,b_1,
+                t_1_opt)
+    t_1opt = (3.1415 * avg_diameter * e_opt) / (b_1 *  z_1)
+    return t_1opt
+
+def f_alpha_ust(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,b_1,
+             t_1_opt):
+    t_1opt = f_t_1opt(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,b_1,
+             t_1_opt)
+    alpha_ust =alpha_1e - 10 * (t_1opt - 0.75) + 21.2
+    return alpha_ust
+
+ksi_sum = 8
+
+def f_fi(ksi_sum):
+    fi = (1 - (ksi_sum/100))**(0.5)
+    return fi
+
+def f_fi_(b_1,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter):
+    l_1=f_l_1(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter)
+    fi_ = 0.98 - 0.008 * (b_1 / l_1)
+    return fi_
+
+def f_delta_fi(ksi_sum,b_1,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,
+               avg_diameter):
+    fi=f_fi(ksi_sum)
+    fi_=f_fi_(b_1,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter)
+    delta_fi = ((fi - fi_) / fi) * 100
+    return delta_fi
+
+def f_c_1(ksi_sum,ro,H_0):
+    fi=f_fi(ksi_sum)
+    c_1t = f_c_1t(ro,H_0)
+    c_1 = c_1t * fi 
+    return c_1
+
+def f_alpha_1(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1,ksi_sum,avg_diameter):
+    fi=f_fi(ksi_sum)
+    mu_1=f_mu_1(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1,avg_diameter)
+    alpha_1 = math.degrees(math.asin((mu_1/fi)* math.sin(math.radians(alpha_1e))))
+    return alpha_1
+
+def f_w_1(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,
+         avg_diameter, n):
+    alpha_1=f_alpha_1(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1,
+                      ksi_sum,avg_diameter)
+    c_1=f_c_1(ksi_sum,ro,H_0)
+    u=f_u(avg_diameter, n)
+    w_1 = (c_1 ** 2 + u ** 2 - 2 * c_1 * u * math.cos(math.radians(alpha_1)))**(0.5)
+    return w_1
+
+def f_beta_1(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum, avg_diameter, n):
+    alpha_1=f_alpha_1(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1,ksi_sum,avg_diameter)
+    c_1=f_c_1(ksi_sum,ro,H_0)
+    u=f_u(avg_diameter, n)
+    beta_1 = math.degrees(math.atan(math.sin(math.radians(alpha_1)) / (math.cos(math.radians(alpha_1)) - u / c_1)))
+    return beta_1
+
+def f_delta_H_c(ksi_sum,ro,H_0):
+    c_1t=f_c_1t(ro,H_0)
+    fi=f_fi(ksi_sum)
+    delta_H_c = c_1t ** 2 / 2 * (1 - fi ** 2)
+    return delta_H_c
+
+def f_h_1_(ro,H_0,p0, t0,ksi_sum):
+    point_1_t=f_point_1_t(ro,H_0,p0, t0)
+    delta_H_c=f_delta_H_c(ksi_sum,ro,H_0)
+    h_1 = point_1_t.h + delta_H_c/1000
+    return h_1
+
+def f_point_1_(ro,H_0,p0, t0,ksi_sum):
+    point_1_t=f_point_1_t(ro,H_0,p0, t0)
+    h_1=f_h_1_(ro,H_0,p0, t0,ksi_sum)
+    point_1_ = gas(P = point_1_t.P, h = h_1)
+    return point_1_
+
+def f_h_2t(ro,H_0,p0, t0,ksi_sum):
+    point_1_=f_point_1_(ro,H_0,p0, t0,ksi_sum)
+    H0_p=f_H0_p(ro,H_0)
+    h_2t = point_1_.h - H0_p/1000
+    return h_2t
+
+def f_point_2_t(ro,H_0,p0, t0,ksi_sum):
+    point_1_=f_point_1_(ro,H_0,p0, t0,ksi_sum)
+    h_2t=f_h_2t(ro,H_0,p0, t0,ksi_sum)
+    point_2_t = gas(s = point_1_.s, h = h_2t)
+    return point_2_t
+
+def f_w_2t(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,avg_diameter, n):
+    H0_p=f_H0_p(ro,H_0)
+    w_1=f_w_1(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,avg_diameter, n)
+    w_2t = (2* H0_p + w_1 ** 2)**(0.5)
+    return w_2t
+
+delta = 0.004
+
+def f_l_2(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter):
+    l_1=f_l_1(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter)
+    delta = 0.004
+    l_2 = l_1 + delta
+    return l_2
+
+#b_2 = 48 * 10**(-3)
+b_2 = 0.08061977786706132
+
+def f_mu_2(b_2,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter):
+    l_2=f_l_2(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter)
+    mu_2 = 0.965 - 0.01 * (b_2 / l_2)
+    return mu_2
+
+def f_a_2t(ro,H_0,p0, t0,ksi_sum):
+    k2 = 1.3
+    point_2_t=f_point_2_t(ro,H_0,p0, t0,ksi_sum)
+    a_2t = math.sqrt(k2 * (point_2_t.P * MPa) * point_2_t.v)
+    return a_2t
+
+def f_M_2t(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,
+         avg_diameter, n):
+    w_2t=f_w_2t(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,
+         avg_diameter, n)
+    a_2t=f_a_2t(ro,H_0,p0, t0,ksi_sum)
+    M_2t = w_2t / a_2t
+    return M_2t
+
+def f_F_2(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,
+         avg_diameter, n, b_2):
+    w_2t=f_w_2t(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,
+         avg_diameter, n)
+    G_0 = f_inlet_mass_flow(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water)
+    point_2_t=f_point_2_t(ro,H_0,p0, t0,ksi_sum)
+    mu_2=f_mu_2(b_2,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter)
+    F_2 = (G_0 * point_2_t.v) / (mu_2 * w_2t)
+    return F_2
+
+def f_beta_2e(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water, ro, H_0, alpha_1e,b_1, ksi_sum,
+         avg_diameter, n, b_2):
+    F_2=f_F_2(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,
+         avg_diameter, n, b_2)
+    e_opt=f_e_opt(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter)
+    l_2=f_l_2(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter)
+    beta_2e = math.degrees(F_2 / (e_opt * 3.1415 * avg_diameter * l_2))
+    return beta_2e
+
+beta_0 = 25
+beta_2e = 23
+t_opt = 0.6
+M_2t = 0.9
+f_2 = 1.85 * (10**(-4))
+I_2_min = 0.205 * 10**(-8)
+J = I_2_min
+W_2_min = 0.234*10**(-6)
+t_2opt = 0.6
+
+def f_z_2(avg_diameter,b_2,t_2opt):
+    z__2 = (3.1415 * avg_diameter) / (b_2 * t_2opt)
+    z_2 = round(z__2+0.5)-1 if (round(z__2) % 2) else round(z__2+0.5)
+    return z_2
+
+def f_t_2opt(avg_diameter,b_2,t_2opt):
+    z_2 = f_z_2(avg_diameter,b_2,t_2opt)
+    t_2opt = (3.1415 * avg_diameter) / (b_2 * z_2)
+    return t_2opt
+
+def f_beta2_ust(beta_2e,avg_diameter,b_2,t_2opt):
+    t_2opt=f_t_2opt(avg_diameter,b_2,t_2opt)
+    beta2_ust=beta_2e - 12.8 * (t_2opt - 0.65) + 58
+    return beta2_ust
+
+#ksi_grid = 5.5*10**(-2)
+ksi_sum_g = 9.7
+
+def f_psi(ksi_sum_g):
+    psi = math.sqrt(1 - (ksi_sum_g/100))
+    return psi
+
+def f_psi_(b_2,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e, avg_diameter):
+    l_2=f_l_2(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e, avg_diameter)
+    psi_ = 0.96 - 0.014 * (b_2 / l_2)
+    return psi_
+
+def f_delta_psi(b_2,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e, avg_diameter):
+    psi=f_psi(ksi_sum_g)
+    psi_=f_psi_(b_2,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e, avg_diameter)
+    delta_psi = ((psi - psi_) / psi) * 100
+    return delta_psi
+
+def f_w_2(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,
+         avg_diameter, n,ksi_sum_g):
+    w_2t=f_w_2t(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,
+         avg_diameter, n)
+    psi=f_psi(ksi_sum_g)
+    w_2 = w_2t * psi
+    return w_2
+
+def f_beta_2(beta_2e,b_2,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,ksi_sum_g,avg_diameter):
+    mu_2=f_mu_2(b_2,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter)
+    psi=f_psi(ksi_sum_g)
+    beta_2 = math.degrees(math.asin((mu_2 / psi) * math.sin(math.radians(beta_2e))))
+    return beta_2
+
+def f_c_2(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,avg_diameter, n,ksi_sum_g,beta_2e,b_2):
+    w_2=f_w_2(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,avg_diameter, n,ksi_sum_g)
+    u=f_u(avg_diameter, n)
+    beta_2=f_beta_2(beta_2e,b_2,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,ksi_sum_g,avg_diameter)
+    c_2 = (w_2 ** 2 + u ** 2 - 2 * w_2 * u * math.cos(math.radians(beta_2)))**(0.5)
+    return c_2
+
+def f_alpha_2(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,avg_diameter, n,ksi_sum_g,beta_2e,b_2):
+    beta_2=f_beta_2(beta_2e,b_2,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,ksi_sum_g,avg_diameter)
+    w_2=f_w_2(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,avg_diameter, n,ksi_sum_g)
+    u=f_u(avg_diameter, n)
+    alpha_2 = math.degrees(math.atan((math.sin(math.radians(beta_2))) / (math.cos(math.radians(beta_2)) - u / w_2)))
+    return alpha_2
+
+def f_delta_H_p(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,avg_diameter, n, ksi_sum_g):
+    w_2t=f_w_2t(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,avg_diameter, n)
+    psi=f_psi(ksi_sum_g)
+    delta_H_p = w_2t ** 2 / 2 * (1 - psi ** 2)                                 
+    return delta_H_p
+
+def f_point_2_(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,avg_diameter, n, ksi_sum_g):
+    delta_Hp = f_delta_H_p(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,avg_diameter, n, ksi_sum_g)
+    h_2 = f_point_2_t(ro,H_0,p0, t0,ksi_sum).h + (delta_Hp/1000)
+    _p_ = f_point_2_t(ro,H_0,p0, t0,ksi_sum).P
+    point_2_ = gas(P = 17.51038032463063, h = 3259.6451629779685)
+    return point_2_
+       
+def f_delta_H_vc(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,avg_diameter, n,ksi_sum_g,beta_2e,b_2):
+    c_2=f_c_2(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,avg_diameter, n,ksi_sum_g,beta_2e,b_2)
+    delta_H_vc = (c_2 ** 2 )/ 2
+    return delta_H_vc
+
+x_vc = 0
+
+def f_E_0(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,avg_diameter, n,ksi_sum_g,beta_2e,b_2):
+    delta_H_vc=f_delta_H_vc(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1,ksi_sum,avg_diameter, n,ksi_sum_g,beta_2e,b_2)
+    E_0 = H_0 - x_vc * delta_H_vc 
+    return E_0
+
+def f_eff_ol(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,avg_diameter, n,ksi_sum_g,beta_2e,b_2):
+    E_0 = f_E_0(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,avg_diameter, n,ksi_sum_g,beta_2e,b_2)
+    delta_H_vc = f_delta_H_vc(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, b_1, 
+                             ksi_sum,alpha_1e, avg_diameter, n,ksi_sum_g,beta_2e,b_2)
+    delta_H_c = f_delta_H_c(ksi_sum,ro,H_0)
+    delta_H_p = f_delta_H_p(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,avg_diameter, n, ksi_sum_g)
+    eff_ol = (E_0 - delta_H_c - delta_H_p - (1 - x_vc) * delta_H_vc) / E_0
+    return eff_ol
+
+def f_eff_ol_(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,avg_diameter, n,ksi_sum_g,beta_2e,b_2):
+    E_0 = f_E_0(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,avg_diameter, n,ksi_sum_g,beta_2e,b_2)
+    u=f_u(avg_diameter, n)
+    c_1 = f_c_1(ksi_sum,ro,H_0)
+    alpha_1=f_alpha_1(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1,ksi_sum,avg_diameter)
+    c_2=f_c_2(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,avg_diameter, n,ksi_sum_g,beta_2e,b_2)
+    alpha_2 = f_alpha_2(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,avg_diameter, n,ksi_sum_g,beta_2e,b_2)
+    eff_ol_ = ((u * (c_1 * math.cos(math.radians(alpha_1)) + c_2 * math.cos(math.radians(alpha_2)))) / E_0)                                                                                                   + 0.0115
+    return eff_ol_
+
+# def f_eff_ol_(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,avg_diameter, n,ksi_sum_g,beta_2e,b_2):
+#     E_0 = f_E_0(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,avg_diameter, n,ksi_sum_g,beta_2e,b_2)
+#     u=f_u(avg_diameter, n)
+#     w_2=f_w_2(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,avg_diameter, n,ksi_sum_g)
+#     w_1 = f_w_1(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,avg_diameter, n)
+#     beta_1 = f_beta_1(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum, avg_diameter, n)
+#     beta_2 = f_beta_2(beta_2e,b_2,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,ksi_sum_g)
+#     eff_ol_ = (u * (w_1 * math.cos(math.radians(beta_1)) + w_2 * math.cos(math.radians(beta_2)))) / E_0  
+#     return eff_ol_
+
+def f_delta_eff_ol(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,avg_diameter, n,ksi_sum_g,beta_2e,b_2):
+    eff_ol = f_eff_ol(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,avg_diameter, n,ksi_sum_g,beta_2e,b_2) 
+    eff_ol_ = f_eff_ol_(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,avg_diameter, n,ksi_sum_g,beta_2e,b_2)
+    delta_eff_ol = ((eff_ol - eff_ol_) / eff_ol)*100 
+    return delta_eff_ol
+
+def f_c_f(H_0):
+    c_f = math.sqrt(2 *  H_0)
+    return c_f
+
+def f_u_cf(avg_diameter, n, H_0):
+    u=f_u(avg_diameter, n)
+    c_f = f_c_f(H_0)
+    u_cf = u / c_f
+    return u_cf
+
+def f_u_cf_opt(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum):
+    fi=f_fi(ksi_sum)
+    alpha_1=f_alpha_1(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1,ksi_sum,avg_diameter)
+    u_cf_opt = fi * math.cos(math.radians(math.radians(alpha_1))) / (2 * math.sqrt(1 - ro))
+    return u_cf_opt
+
+def f_diam_p(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e, avg_diameter):
+    l_2=f_l_2(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter)
+    diam_p = avg_diameter + l_2
+    return diam_p
+
+def f_delta_r(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e, avg_diameter):
+    diam_p = f_diam_p(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e, avg_diameter)
+    delta_r = 0.001 * diam_p
+    return delta_r
+
+def f_delta_e(mu_a,delta_a,z,mu_r, electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e, avg_diameter):
+    delta_r = f_delta_r(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e, avg_diameter)
+    delta_e = math.pow((1 / (mu_a * delta_a) ** 2) + (z / (mu_r * delta_r) ** 2), -0.5)
+    return delta_e
+
+def f_ksi_b(mu_a,delta_a,z,mu_r, electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e, avg_diameter,n,ksi_sum_g,beta_2e,b_2):
+    delta_e = f_delta_e(mu_a,delta_a,z,mu_r, electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e, avg_diameter)
+    diam_p = f_diam_p(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e, avg_diameter)
+    eff_ol = f_eff_ol(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,avg_diameter, n,ksi_sum_g,beta_2e,b_2)
+    F_1=f_F_1(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0)
+    l_2=f_l_2(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter)
+    ksi_b = ((3.1415 *diam_p *delta_e * eff_ol) /F_1) * math.sqrt(ro + 1.8 * l_2 / avg_diameter)
+    return ksi_b
+
+def f_delta_H_y(mu_a,delta_a,z,mu_r, electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e, avg_diameter,n,ksi_sum_g,beta_2e,b_2):
+    E_0 = f_E_0(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,avg_diameter, n,ksi_sum_g,beta_2e,b_2)
+    ksi_b = f_ksi_b(mu_a,delta_a,z,mu_r, electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e, avg_diameter,n,ksi_sum_g,beta_2e,b_2)
+    delta_H_y = ksi_b* E_0
+    return delta_H_y
+
+def f_ksi_tr(k_tr,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,avg_diameter, n, H_0):
+    u_cf = f_u_cf(avg_diameter, n, H_0)
+    F_1=f_F_1(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0)
+    ksi_tr = k_tr * (avg_diameter ** 2) * (u_cf ** 3) / F_1 
+    return ksi_tr
+
+def f_delta_H_tr(k_tr,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,avg_diameter, n,ksi_sum_g,beta_2e,b_2):
+    ksi_tr = f_ksi_tr(k_tr,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,avg_diameter, n, H_0)
+    E_0 = f_E_0(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,avg_diameter, n,ksi_sum_g,beta_2e,b_2)
+    delta_H_tr = ksi_tr * E_0
+    return delta_H_tr
+
+def f_ksi_v(k_v,m,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro, alpha_1e,b_1,ksi_sum, avg_diameter, n, H_0):
+    alpha_1=f_alpha_1(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1,ksi_sum,avg_diameter)
+    e_opt=f_e_opt(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter)
+    u_cf = f_u_cf(avg_diameter, n, H_0)
+    ksi_v = (k_v / math.sin(math.radians(alpha_1e))) * ((1 - e_opt) / e_opt) * (u_cf ** 3) * m
+    return ksi_v
+
+def f_B_2(b_2,beta_2e,avg_diameter,t_2opt):
+    beta2_ust = f_beta2_ust(beta_2e,avg_diameter,b_2,t_2opt)
+    B_2 = b_2 * math.sin(math.radians(beta2_ust))
+    return B_2
+
+def f_ksi_segm(i,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,avg_diameter, n,ksi_sum_g,beta_2e,b_2 ):
+    B_2 = f_B_2(b_2,beta_2e,avg_diameter,t_2opt)
+    l_2=f_l_2(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter)
+    F_1=f_F_1(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0)
+    u_cf = f_u_cf(avg_diameter, n, H_0)
+    eff_ol = f_eff_ol(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,avg_diameter, n,ksi_sum_g,beta_2e,b_2)
+    ksi_segm = 0.25 * B_2 * 10**-3 * l_2 / F_1 * u_cf * eff_ol *i
+    return ksi_segm
+
+def f_ksi_part(k_v,m,i,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum, avg_diameter, n,ksi_sum_g,beta_2e,b_2):
+    ksi_v = f_ksi_v(k_v,m,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro, alpha_1e,b_1,ksi_sum,avg_diameter, n, H_0)
+    ksi_segment = f_ksi_segm(i,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum, avg_diameter, n,ksi_sum_g,beta_2e,b_2)
+    ksi_part = ksi_v + ksi_segment
+    return ksi_part
+
+def f_delta_H_part(k_v,m,i,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum, avg_diameter, n,ksi_sum_g,beta_2e,b_2):
+    ksi_part = f_ksi_part(k_v,m,i,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum, avg_diameter, n,ksi_sum_g,beta_2e,b_2)
+    E_0 = f_E_0(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,avg_diameter, n,ksi_sum_g,beta_2e,b_2)
+    delta_H_part = ksi_part * E_0
+    return delta_H_part
+
+def f_H_i(mu_a,delta_a,z,mu_r,k_tr,k_v,m,i,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum, avg_diameter, n,ksi_sum_g,beta_2e,b_2):
+    E_0 = f_E_0(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,avg_diameter, n,ksi_sum_g,beta_2e,b_2)
+    delta_H_c = f_delta_H_c(ksi_sum,ro,H_0)
+    delta_H_p = f_delta_H_p(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,avg_diameter, n, ksi_sum_g)
+    delta_H_vc=f_delta_H_vc(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,avg_diameter, n,ksi_sum_g,beta_2e,b_2)
+    delta_H_y = f_delta_H_y(mu_a,delta_a,z,mu_r, electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e, avg_diameter,n,ksi_sum_g,beta_2e,b_2)
+    delta_H_tr = f_delta_H_tr(k_tr,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum, avg_diameter, n,ksi_sum_g,beta_2e,b_2)
+    delta_H_part = f_delta_H_part(k_v,m,i,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e, b_1, ksi_sum, avg_diameter, n,ksi_sum_g,beta_2e,b_2)
+    H_i = E_0 - delta_H_c - delta_H_p - (1 - x_vc) * delta_H_vc - delta_H_y - delta_H_tr - delta_H_part
+    return H_i
+                    
+def f_eff_oi(mu_a,delta_a,z,mu_r,k_tr,k_v,m,i,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum, avg_diameter, n,ksi_sum_g,beta_2e,b_2):
+    H_i = f_H_i(mu_a,delta_a,z,mu_r,k_tr,k_v,m,i,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,avg_diameter, n,ksi_sum_g,beta_2e,b_2)
+    E_0 = f_E_0(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,avg_diameter, n,ksi_sum_g,beta_2e,b_2)
+    eff_oi = H_i / E_0
+    return eff_oi
+                    
+def f_N_i(mu_a,delta_a,z,mu_r,k_tr,k_v,m,i,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum, avg_diameter, n,ksi_sum_g,beta_2e,b_2):
+    H_i = f_H_i(mu_a,delta_a,z,mu_r,k_tr,k_v,m,i,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,avg_diameter, n,ksi_sum_g,beta_2e,b_2)
+    G_0 = f_inlet_mass_flow(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water)
+    N_i = G_0 * H_i
+    return N_i
+
+b2_atl = 25.6* 10 **(-3)
+W2_min_atl = 0.234 *10** (-6)
+
+def f_W2_min(W2_min_atl,b_2,b2_atl):
+    W2_min= W2_min_atl * ((b_2 / b2_atl)**3)
+    return W2_min
+                    
+def f_b_2(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum, avg_diameter, n,ksi_sum_g,beta_2e,W2_min_atl,b_2,b2_atl,t_2opt):
+    sigma_izg = f_sigma_izg(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum, avg_diameter, n,ksi_sum_g,beta_2e,W2_min_atl,b_2,b2_atl,t_2opt)
+    b_2 = b_2*math.sqrt((sigma_izg/20))   
+    return b_2
+                    
+def f_sigma_izg(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,avg_diameter, n,ksi_sum_g,beta_2e,W2_min_atl,b_2,b2_atl,t_2opt):
+    G_0 = f_inlet_mass_flow(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water)
+    eff_ol = f_eff_ol(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,avg_diameter, n,ksi_sum_g,beta_2e,b_2)
+    l_2=f_l_2(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter)
+    u=f_u(avg_diameter, n)
+    W2_min = f_W2_min(W2_min_atl,b_2,b2_atl)
+    z_2 = f_z_2(avg_diameter,b_2,t_2opt)
+    e_opt=f_e_opt(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter)
+    sigma_izg = ((G_0 * H_0 * eff_ol * l_2) / (2 * u * z_2 * W2_min * e_opt))/ (10**6)
+    return sigma_izg
+                    
+def f_omega(n):
+    omega = 2 * 3.1415 * n
+    return omega
+                    
+def f_sigma_p(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,n,avg_diameter):
+    omega = f_omega(n)
+    l_2=f_l_2(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter)
+    sigma_p = 0.5 * 7800 * (omega**2) * avg_diameter * l_2 / (10**6)
+    return sigma_p
+
+########################################################################################################################
+def plot_treyg_speed(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1,
+                      ksi_sum, beta_2e,b_2,ksi_sum_g,avg_diameter, n):
+        
+        alpha_1 = f_alpha_1(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1,
+                      ksi_sum,avg_diameter)
+        beta_2 = f_beta_2(beta_2e,b_2,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,ksi_sum_g,avg_diameter)
+        c_1=f_c_1(ksi_sum,ro,H_0)
+        u=f_u(avg_diameter, n)
+        w_2=f_w_2(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,
+         avg_diameter, n,ksi_sum_g)
+        
+        sin_alpha_1 = math.sin(math.radians(alpha_1))
+        cos_alpha_1 = math.cos(math.radians(alpha_1))
+        sin_beta_2 = math.sin(math.radians(beta_2))
+        cos_beta_2 = math.cos(math.radians(beta_2))
+
+        c1_plot = [[0, -c_1 * cos_alpha_1], [0, -c_1 * sin_alpha_1]]
+        u1_plot = [[-c_1 * cos_alpha_1, -c_1 * cos_alpha_1 + u], [-c_1 * sin_alpha_1, -c_1 * sin_alpha_1]]
+        w1_plot = [[0, -c_1 * cos_alpha_1 + u], [0, -c_1 * sin_alpha_1]]
+        w2_plot = [[0, w_2 * cos_beta_2], [0, -w_2 * sin_beta_2]]
+        u2_plot = [[w_2 * cos_beta_2, w_2 * cos_beta_2 - u], [-w_2 * sin_beta_2, -w_2 * sin_beta_2]]
+        c2_plot = [[0, w_2 * cos_beta_2 - u], [0, -w_2 * sin_beta_2]]
 
         fig, ax = plt.subplots(1, 1, figsize=(15, 5))
         ax.plot(c1_plot[0], c1_plot[1], label='C_1', c='red')
@@ -446,597 +890,577 @@ class Part_1:
         ax.set_title("Треугольник скоростей",)
         ax.legend()
         ax.grid();
-
         
-    def all_angles(self):
+######################################################################################################################################        
+def plot_u_cf(n, electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum, ksi_sum_g,beta_2e,b_2):
         
-        self.working_atlas_obr()
-        
-        print ("alpha_1 =", self.alpha_1, ",alpha_2 =", self.alpha_2,", betta_1 =", self.beta_1,"betta_2 =", self.beta_2)
-        
-    def all_speeds(self):
-        
-        self.working_atlas_obr()
-        
-        print ("c_1 =", self.c_1, ",w_2 =", self.w_2,", w_1 =", self.w_1,",u =", self.u,",c_2 =", self.c_2)
-        
-        
-        #расчет соотношения u/cf
-    def u_cf_c(self):
-        
-        self.working_atlas_obr()
-        
-        self.cf = m.sqrt(2000 * self.H_0)
-        self.u_cf = self.u / self.cf
-        self.u_cf_opt = self.fi * m.cos(m.radians(self.alpha_1)) / (2 * m.sqrt(1 - self.ro))
-        return self.cf, self.u_cf, self.u_cf_opt
-
-    #расчет относительного кпд
-    def KPD(self):
+    array_u_cf = []
+    d_value = []
+    efficiency_ = []
+    efficiency = []
     
-        self.u_cf_c()
-    
-        self.delta_Hp = self.w2t ** 2 / 2 * (1 - self.psi ** 2) / 1000
-        self.h2 = self.point_2_t.h + self.delta_Hp
-        self.point_2_ = gas(P = self.point_2_t.P, h = self.h2)
-        self.point_t_konec = gas(h = self.point_0().h - self.H_0, P = self.point_2_.P)
-        self.delta_Hvc = self.c_2 ** 2 / 2 / 1000 
+    for i in range(90, 110,2):
+        u_cf = f_u_cf(i/100, n, H_0)   
+        eff_ol = f_eff_ol(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,i/100, n,ksi_sum_g,beta_2e,b_2) 
+        eff_ol_ = f_eff_ol(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,i/100, n,ksi_sum_g,beta_2e,b_2)
 
-        self.x_vc = 0
-
-        self.E0 = self.H_0 - self.x_vc * self.delta_Hvc  
-        self.eff = (self.E0 - self.delta_Hc - self.delta_Hp - (1 - self.x_vc) * self.delta_Hvc) / self.E0
-       
-        self.eff_ = (self.u * (self.w_1 * m.cos(m.radians(self.beta_1)) + self.w_2 * m.cos(m.radians(self.beta_2)))) / self.E0 / 1000
-        
-        self.delta_eff = (self.eff - self.eff_) / self.eff
-        
-        
-        
-        return self.delta_Hp, self.delta_Hvc, self.E0, self.eff, self.eff_, self.delta_eff, self.point_2_, self.point_t_konec
-
-    
-    def Kpd_(self):
-        self.KPD()
-        return self.eff_
-    
-    def delta_graf(self):
-        
-        self.KPD()
-        
-        print("Погрешность расчета КПД по разным методам = ",self.delta_eff*100,"%")
-
-############################
-    
-    def gr_u_cf(self):
+        array_u_cf = array_u_cf + [u_cf]
+                
+        d_value = d_value + [i/100]
+                
+        efficiency_ = efficiency_ + [eff_ol_]
+        efficiency = efficiency + [eff_ol]
             
-        self.KPD()
-        array_u_cf = []
-        d_value = []
-        efficiency_ = []
-        efficiency = []
-            
-        for d_val in range (90,180,1):
-                
-            self.avg_diameter = float(d_val)/100
-                
-            self.KPD()
-            array_u_cf = array_u_cf + [self.u_cf]
-                
-            d_value = d_value + [self.avg_diameter]
-                
-            efficiency_ = efficiency_ + [self.eff_]
-            efficiency = efficiency + [self.eff]
-            
-        fig, ax = plt.subplots(1, 1, figsize=(8, 8))
-        X1 = array_u_cf
-        X2 = d_value
-        Y1 = efficiency_
-        Y2 = efficiency
+    fig, ax = plt.subplots(1, 1, figsize=(10, 10))
+    X1 = array_u_cf
+    X2 = d_value
+    Y1 = efficiency_
+    Y2 = efficiency
     
-        ax.plot(X1,Y1, label = 'Расчет по методу скоростей', color = 'blue', linewidth=3,linestyle=":")
-        ax.plot(X1,Y2, label = 'Расчет по методу потерь', color = 'red')
-        ax.set_title("Зависимость лопаточного КПД от u/сф")
-        ax.set_ylabel("Лопаточный КПД")
-        ax.set_xlabel("U/сф")
-        ax.legend()
-        ax.grid()
-        plt.show()
+    ax.plot(X1,Y1, label = 'Расчет по методу скоростей', color = 'blue', linewidth=3,linestyle=":")
+    ax.plot(X1,Y2, label = 'Расчет по методу потерь', color = 'red')
+    ax.set_title("Зависимость лопаточного КПД от u/сф")
+    ax.set_ylabel("Лопаточный КПД")
+    ax.set_xlabel("U/сф")
+    ax.legend()
+    ax.grid()
+    plt.show()
 
-        fig, ax = plt.subplots(1, 1, figsize=(8, 8))
-        plt.plot(X2,Y1, label = 'Расчет по методу скоростей', color = 'blue',linewidth=3,linestyle=":")
-        plt.plot(X2,Y2, label = 'Расчет по методу потерь', color = 'red')
-        plt.title("Зависимость лопаточного КПД от d")
-        plt.ylabel("Лопаточный КПД")
-        plt.xlabel("d, м")
-        plt.legend()
-        plt.grid()
-        plt.show()
+    fig, ax = plt.subplots(1, 1, figsize=(10, 10))
+    plt.plot(X2,Y1, label = 'Расчет по методу скоростей', color = 'blue',linewidth=3,linestyle=":")
+    plt.plot(X2,Y2, label = 'Расчет по методу потерь', color = 'red')
+    plt.title("Зависимость лопаточного КПД от d")
+    plt.ylabel("Лопаточный КПД")
+    plt.xlabel("d, м")
+    plt.legend()
+    plt.grid()
+    plt.show()
+    
+######################################################################################################################################    
+
+def f_point_t_konec(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,avg_diameter, n, ksi_sum_g):
+    point_0 = f_point_0(p0, t0)
+    point_2_ = f_point_2_(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,avg_diameter, n, ksi_sum_g)
+    point_t_konec = gas(h = (point_0.h - H_0/1000), P = point_2_.P)
+    return point_t_konec
+
+def f_pont_poter(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, b_1, 
+                             ksi_sum,alpha_1e, avg_diameter, n,ksi_sum_g,beta_2e,b_2):
+    point_2_ = f_point_2_(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,avg_diameter, n, ksi_sum_g)
+    delta_H_vc = f_delta_H_vc(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, b_1, 
+                             ksi_sum,alpha_1e, avg_diameter, n,ksi_sum_g,beta_2e,b_2)
+    delta_H_c = f_delta_H_c(ksi_sum,ro,H_0)
+    delta_H_p = f_delta_H_p(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,avg_diameter, n, ksi_sum_g)
+    pont_poter = gas(P = point_2_.P,h = (point_2_.h + (delta_H_c + delta_H_p + (1 - 0) * delta_H_vc)/1000))
+    return pont_poter
+ 
+    
+#Part 3
+n_stages = 12
+
+# K-800-23.5 lMZ
+
+def f_diam_1(avg_diameter):
+    diam_1 = avg_diameter - 0.2
+    return diam_1
+
+def f_diam_kor(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter):
+    diam_1 = f_diam_1(avg_diameter)
+    l_2=f_l_2(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter)
+    diam_kor = diam_1 - l_2
+    return diam_kor
+
+def f_l_2z(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,ksi_sum,n, ksi_sum_g):
+    diam_kor = f_diam_kor(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter)
+    diam_p = f_diam_p(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e, avg_diameter)
+    l_2=f_l_2(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter)
+    point_1__ = f_point_1(p0, t0,p_middle)
+    point_2__ = f_point_2_(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum,avg_diameter, n, ksi_sum_g)
+    l_2z = (- diam_kor +  math.sqrt(diam_kor**2 + 4 * (point_1__.v / point_2__.v) * l_2 * diam_p))/2
+    return l_2z
+
+        
+def f_d_z2(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,ksi_sum,n):
+    diam_kor = f_diam_kor(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter)
+    l_2z = f_l_2z(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,ksi_sum,n, ksi_sum_g)
+    d_z2 = diam_kor + l_2z
+    return d_z2
+
+def f_diams(n,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,n_stages,ksi_sum, num_turb):
+    diam_1 = f_diam_1(avg_diameter)
+    d_z2 = f_d_z2(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,ksi_sum,n)
+    diams = (-diam_1 + d_z2) / n_stages * num_turb + diam_1
+    return diams
+
+def f_l_b(n,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,n_stages, ksi_sum, num_turb):
+    l_2=f_l_2(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter)
+    l_2z = f_l_2z(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,ksi_sum,n, ksi_sum_g)
+    l_b = (-l_2 + l_2z) / n_stages * num_turb + l_2
+    return l_b
+
+def f_H0(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,n_stages, ksi_sum, b_1,n):
+        
+    ucf = []
+    H0 = []
+    fi=f_fi(ksi_sum)
+    alpha_1=f_alpha_1(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1,ksi_sum,avg_diameter)
+        
+    for j in range (0, n_stages):
+            
+        diams = f_diams(n,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,n_stages, ksi_sum,num_turb = j)
+        l_b = f_l_b(n,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,n_stages,ksi_sum, num_turb = j)
+            
+        reaction_degree = ro + (1.8 / (diams / l_b + 1.8))
+        u_cf_n = fi * math.cos(math.radians(alpha_1)) /  (2 * (1 - reaction_degree) ** 0.5)
+        first = (diams / (u_cf_n)) ** 2
+        second = (n / 50) ** 2
+        
+        if j == 0:
+            H0 = H0 + [ 12.325 * first * second ] 
+        else:                
+            H0 = H0 + [0.93 * 12.325 * first * second ]
+    return H0       
+            
+def f_reheat_factor(mu_a,delta_a,z,mu_r,k_tr,k_v,m,i,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum, avg_diameter, n,ksi_sum_g,beta_2e,b_2,n_stages):
+    eff_oi = f_eff_oi(mu_a,delta_a,z,mu_r,k_tr,k_v,m,i,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum, avg_diameter, n,ksi_sum_g,beta_2e,b_2)
+    point_1 = f_point_1(p0, t0, p_middle)
+    point_1_ = point_1_ = f_point_1_(ro,H_0,p0, t0,ksi_sum)
+    reheat_factor = 4.8 * 10 ** (-4) * (1 - eff_oi) * (point_1_.h - point_1.h) * (n_stages - 1) / n_stages
+    return reheat_factor
+
+def f_H0_poln(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,n_stages,ksi_sum, b_1,n):
+    
+    H0 = f_H0(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,n_stages, ksi_sum, b_1,n)
+    H0_poln = sum(H0)
+    
+    return H0_poln
+
+def f_n_st_rasch(n,mu_a,delta_a,z,mu_r,k_tr,k_v,m,i,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,n_stages,ksi_sum, b_1):             
+    reheat_factor = f_reheat_factor(mu_a,delta_a,z,mu_r,k_tr,k_v,m,i,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum, avg_diameter, n,ksi_sum_g,beta_2e,b_2,n_stages)
+    point_1 = f_point_1(p0, t0, p_middle)
+    point_1_ = point_1_ = f_point_1_(ro,H_0,p0, t0,ksi_sum)
+    hp_heat_drop = point_1_.h - point_1.h
+    H0_poln = f_H0_poln(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,n_stages,ksi_sum, b_1,n)
+
+    n_st_rasch = (hp_heat_drop* (1 + reheat_factor))/(H0_poln/(n_stages))
+    return n_st_rasch
+
+def f_real_heat_drop(mu_a,delta_a,z,mu_r,k_tr,k_v,m,i,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum, avg_diameter, n,ksi_sum_g,beta_2e,b_2):
+    
+    reheat_factor = f_reheat_factor(mu_a,delta_a,z,mu_r,k_tr,k_v,m,i,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum, avg_diameter, n,ksi_sum_g,beta_2e,b_2,n_stages)
+    point_1 = f_point_1(p0, t0, p_middle)
+    point_1_ = point_1_ = f_point_1_(ro,H_0,p0, t0,ksi_sum)
+    hp_heat_drop = point_1_.h - point_1.h
+    H0_poln = f_H0_poln(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,n_stages,ksi_sum, b_1,n)
+
+    h0 = (hp_heat_drop * (1 + reheat_factor) - H0_poln) / n_stages
+        
+    real_heat_drop = []
+        
+    for q in range(0,9):
+        
+        H0 = f_H0(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,n_stages, ksi_sum, b_1,n)
+
+        real_heat_drop = real_heat_drop + [H0[q] + h0]
+            
+    return real_heat_drop
+
+def f_delta_heat_drop(mu_a,delta_a,z,mu_r,k_tr,k_v,m,i,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum, avg_diameter, n,ksi_sum_g,beta_2e,b_2):
+            
+    real_heat_drop = f_real_heat_drop(mu_a,delta_a,z,mu_r,k_tr,k_v,m,i,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum, avg_diameter, n,ksi_sum_g,beta_2e,b_2)
+
+    sum_r_h_d = sum(real_heat_drop)
+    point_1 = f_point_1(p0, t0, p_middle)
+    point_1_ = point_1_ = f_point_1_(ro,H_0,p0, t0,ksi_sum)
+    hp_heat_drop = point_1_.h - point_1.h    
+    delta_heat_drop = ((sum_r_h_d-hp_heat_drop)/sum_r_h_d)*100 
+    
+    return delta_heat_drop     
+    
+def plot_ot_z(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1,ksi_sum,avg_diameter,n_stages,n,mu_a,delta_a,z,mu_r,k_tr,k_v,m,i,  ksi_sum_g,beta_2e,b_2):
+      
+    d_plot = []
+    ucf_plot = []
+    veernost_plot = []
+    react_plot = []
+    blade_plot = []
+    
+    ro = 0.075
+    fi=f_fi(ksi_sum)
+    alpha_1=f_alpha_1(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1,ksi_sum,avg_diameter)      
+        
+    for i in range (0,n_stages):
+            
+        diams = f_diams(n,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,n_stages, ksi_sum,num_turb = i)
+        l_b = f_l_b(n,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,n_stages, ksi_sum,num_turb=i) 
+            
+        d_plot = d_plot + [diams]
+            
+        blade_plot = blade_plot + [l_b]
+            
+        veernost_plot = veernost_plot +[diams/l_b]
+    
+        react_plot = react_plot + [ro + (1.8 / ((diams/l_b)+ 1.8))]
+
+        ucf_plot = ucf_plot + [fi * math.cos(math.radians(alpha_1)) /  (2 * (1 -(ro + (1.8 / (diams/l_b + 1.8))))**0.5)]
+
+    fig, ax = plt.subplots(1, 1, figsize=(10, 10))
+    X1 = range(1,n_stages+1)
+        
+    Y1 = d_plot
+    Y2 = blade_plot
+    Y3 = veernost_plot
+    Y4 = react_plot      
+    
+    Y5 = ucf_plot
+        
+    real_heat_drop = f_real_heat_drop(mu_a,delta_a,z,mu_r,k_tr,k_v,m,i,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, ksi_sum, avg_diameter, n,ksi_sum_g,beta_2e,b_2)
+
+    Y6 = real_heat_drop
+
+    ax.plot(X1,Y1, color = 'k')
+        
+    ax.set_title("Зависимость диаметра лопаток от номера ступени")
+    ax.set_ylabel("Диаметр")
+    ax.set_xlabel("z")
+    ax.plot(range(1, n_stages + 1), Y1,  marker='o')
+    ax.grid()
+    plt.show()
+
+    fig, ax = plt.subplots(1, 1, figsize=(10, 10))
+    ax.plot(X1,Y2, color = 'k')
+    plt.title("Зависимость длинны лопаток от номера ступени")
+    plt.ylabel("Длинна лопатки")
+    plt.xlabel("z")
+    ax.plot(range(1, n_stages + 1), Y2,  marker='o')
+    plt.grid()
+    plt.show()
+
+    fig, ax = plt.subplots(1, 1, figsize=(10, 10))
+    ax.plot(X1,Y3, color = 'k')
+    plt.title("Зависимость d/l от номера ступени")
+    plt.ylabel("d/l")
+    plt.xlabel("z")
+    ax.plot(range(1, n_stages + 1), Y3,  marker='o')
+    plt.grid()
+    plt.show()
+    
+    fig, ax = plt.subplots(1, 1, figsize=(10, 10))
+    ax.plot(X1,Y4, color = 'k')
+    plt.title("Зависимость степени реактивности от номера ступени")
+    plt.ylabel("Степень реактивности")
+    plt.xlabel("z")
+    ax.plot(range(1, n_stages + 1), Y4,  marker='o')
+    plt.grid()
+    plt.show()
+        
+    fig, ax = plt.subplots(1, 1, figsize=(10, 10))
+    ax.plot(X1,Y5, color = 'k')
+    plt.title("Зависимость u/cf от номера ступени")
+    plt.ylabel("u/cf")
+    plt.xlabel("z")
+    ax.plot(range(1, n_stages + 1), Y5,  marker='o')
+    plt.grid()
+    plt.show()
+        
+    fig, ax = plt.subplots(1, 1, figsize=(10, 10))
+    ax.plot(X1,Y6, color = 'k')
+    plt.title("Зависимость теплоперепада от номера ступени")
+    plt.ylabel("H")
+    plt.xlabel("z")
+    ax.plot(range(1,n_stages + 1 ), Y6,  marker='o')
+    plt.grid()
+    plt.show()
+    
+ro_metal = 7800 
+max_stress_1 = 235 * MPa
+
+def f_tension_stress_root_func(ro_metal,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,ksi_sum,n):
+    l_2z = f_l_2z(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,ksi_sum,n, ksi_sum_g)
+    d_z2 = f_d_z2(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,ksi_sum,n)
+    u=f_u(avg_diameter, n)
+    tension_stress_root_func = 0.5 * ro_metal * (u ** 2) * d_z2 * l_2z
+    return tension_stress_root_func
+
+def f_n_bend_last(max_stress_1, ro_metal,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,n):
+    tension_stress_root_func = f_tension_stress_root_func(ro_metal,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter)
+    n = max_stress_1 / tension_stress_root_func
+    return n    
+
+def f_r_k(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,ksi_sum,n):
+    l_2z = f_l_2z(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,ksi_sum,n, ksi_sum_g)
+    d_z2 = f_d_z2(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,ksi_sum,n)    
+    r_k = (d_z2 - l_2z) / 2
+    return r_k
+
+def f_constant_part(ro_metal,avg_diameter, n):    
+    u = f_u(avg_diameter, n)
+    constant_part = ro_metal * (u ** 2)
+    return constant_part
+
+def f_left(x,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,ksi_sum,n):    
+    l_2z = f_l_2z(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,ksi_sum,n, ksi_sum_g)
+    r_k  = f_r_k(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,ksi_sum,n)
+    left = r_k * (l_2z - x)
+    return left
+
+def f_right(x,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,ksi_sum,n):
+    l_2z = f_l_2z(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,ksi_sum,n, ksi_sum_g)
+    right = 0.5 * ((l_2z ** 2) - (x ** 2))
+    return right 
+
+def f_tens(x,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter, n, ro_metal,ksi_sum):
+    constant_part = f_constant_part(ro_metal,avg_diameter, n)
+    left = f_left(x,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,ksi_sum,n)
+    right = f_right(x,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,ksi_sum,n)
+    tens = constant_part * (left + right)
+    return tens
+
+nu = 0.3
+sigma_1 = 0
+sigma_2 = 100 * MPa
+max_stress_2 = 510 * MPa
+r_2 = 0.56
+r = 0
+#r_1 = f_diam_kor(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter)/2
    
-    def param_kpd(self):
-        
-        self.KPD()
-        
-        self.peripheral_diameter = self.avg_diameter + self.l2
-        self.mu_a = 0.5
-        self.delta_a = 0.0025
-        self.mu_r = 0.75
-        self.delta_r = 0.001 * self.peripheral_diameter
-        self.z = 12 # по прототипу
-        self.delta_e = m.pow((1 / (self.mu_a * self.delta_a) ** 2) + (self.z / (self.mu_r * self.delta_r) ** 2), -0.5)
-        self.ksi_bandage = ((m.pi *self.peripheral_diameter *self.delta_e * self.eff) /self.F1) * m.sqrt(self.ro + 1.8 * self.l2 / self.avg_diameter)
-        self.deltaH_y = self.ksi_bandage * self.E0
-        self.k_tr = 0.7 * 10 ** -3
-        self.ksi_friction = self.k_tr * m.pow(self.avg_diameter, 2) / self.F1 * m.pow(self.u_cf, 3)
-        self.deltaH_tr = self.ksi_friction * self.E0
-        self.k_v = 0.065
-        self.m_ = 1
-        self.ksi_v = self.k_v / m.sin(m.radians(self.alpha1_e)) * (1 - self.e_opt) / self.e_opt * m.pow(self.u_cf, 3) * self.m_
-        self.B2 = self.b2 * m.sin(m.radians(self.beta2_ust))
-        self.i = 4
-        self.ksi_segment = 0.25 * self.B2 * 10**-3 * self.l2 / self.F1 * self.u_cf * self.eff * self.i
-        self.ksi_partiality = self.ksi_v + self.ksi_segment
-        self.deltaH_partiality = self.ksi_partiality * self.E0
-        return self.peripheral_diameter, self.delta_r, self.delta_e, self.ksi_bandage, self.deltaH_y, self.ksi_friction, self.deltaH_tr, self.ksi_v, self.B2, self.ksi_segment, self.ksi_partiality, self.deltaH_partiality 
-
-    def kpd_i(self):
-        
-        self.param_kpd()
-        
-        self.x_vc = 0
-        self.H_i = self.E0 - self.delta_Hc - self.delta_Hp - (1 - self.x_vc) * self.delta_Hvc - self.deltaH_y - self.deltaH_tr - self.deltaH_partiality
-        self.internal_eff = self.H_i / self.E0
-        self.N_i = self.G_0 * self.H_i
-        return self.H_i, self.internal_eff, self.N_i
-
-    #расчет на прочность для лопатки
-    def Proncnost(self):
-        
-        self.kpd_i()
-
-        self.W2_min_ = self.W2_min * m.pow(self.b2 / self.b2_atl, 3)
-        self.sigma_bending = (self.G_0 * self.H_0 * 1000 * self.eff * self.l2) / (2 * self.u * self.z_2 * self.W2_min_ * self.e_opt)
-        self.omega = 2 * m.pi * self.n
-        self.sigma_stretching = (0.5 * 7800 * (self.omega ** 2) * self.avg_diameter * self.l2) / (10**6)
-        return self.W2_min_, self.sigma_bending, self.omega, self.sigma_stretching
     
-    def sigma_bend(self):
-        
-        self.Proncnost()
-        
-        return self.sigma_bending
+def f_a(nu):
+    a = (3 + nu) / 8
+    return nu
+
+def f_sigma_r(sigma_2,nu,avg_diameter, n,ro_metal,r_2,r):
+    a = f_a(nu)
+    u = f_u(avg_diameter, n)
+    sigma_r = a * ro_metal * (u ** 2) * (r_2**2 - r**2) + sigma_2
+    return sigma_r
+
+def f_b(nu):
+    b = (1 + 3 * nu) / (3 + nu)
+    return b
+
+def f_sigma_t(sigma_2,nu,avg_diameter, n,ro_metal,r_2,r):
+    a = f_a(nu)
+    b = f_b(nu)
+    u = f_u(avg_diameter, n)
+    sigma_t = a * ro_metal * (u ** 2) * (r_2**2 - b * r**2) + sigma_2
+    return sigma_t
+
+def f_n(max_stress_2,sigma_2,nu,avg_diameter, n,ro_metal,r_2,r):
+    sigma_t = f_sigma_t(sigma_2,nu,avg_diameter, n,ro_metal,r_2,r)
+    n = max_stress_2/sigma_t
+    return n
+
+psi = 0.85     
+H = 0.6         
+fi = 0.8
+
+E = 2 * (10 ** 11)
+m = 12
+t = 25 * 10**(-3)
+delta = 5 * 10**(-3)
+b = 40 * 10**(-3)
+
+def f_lambd(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,J,f_2,ksi_sum,n, ksi_sum_g):
+    F = f_2 
+    l = f_l_2z(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,ksi_sum,n, ksi_sum_g)
+    i =(J / F) ** 0.5
+    lambd = l / i 
+    return lambd
+
+def f_J_b(b, delta):
+    J_b = b * (delta ** 3) / 12
+    return J_b
+
+def f_k(b,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,beta_2e,avg_diameter,b_2,t_2opt,delta,J,m,H,E,t,ksi_sum,n, ksi_sum_g):
+    beta = f_beta2_ust(beta_2e,avg_diameter,b_2,t_2opt)
+    J_b = f_J_b(b, delta)
+    l = f_l_2z(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,ksi_sum,n, ksi_sum_g)
+    k = (12 * (m - 1) * H * E * J_b * l * (math.sin(math.radians(beta))) ** 2) / (m * t * J * E)
+    return k 
+
+def f_NU(b,f_2,t,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,ksi_sum, n, ksi_sum_g):
+    F = f_2
+    l = f_l_2z(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,ksi_sum,n, ksi_sum_g)
+    NU = b * delta * t / (F * l)
+    return NU
+
+def f_B_bandage(b,f_2,t,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,ksi_sum,beta_2e,b_2,t_2opt,n):
+    nu = f_NU(b,f_2,t,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,ksi_sum, n, ksi_sum_g)
+    d = f_d_z2(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,ksi_sum,n)
+    l = f_l_2z(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,ksi_sum,n, ksi_sum_g)
+    beta = f_beta2_ust(beta_2e,avg_diameter,b_2,t_2opt)
+    B_bandage = 0.5 * ((d /l) - 1) * ((nu+ 1/2)/(nu+1/3)) + (math.sin(math.radians(beta))) ** 2
+    return B_bandage
     
-    def sigma_stretch(self):
-        
-        self.Proncnost()
-        
-        return self.sigma_stretching
+def f_static_frequency(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,psi, E,f_2,J,ro_metal,ksi_sum,n):
+    l = f_l_2z(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,ksi_sum,n, ksi_sum_g)
+    F = f_2
+    first = psi * 0.56 / ( l ** 2)
+    second = ((E * J) / (ro_metal * F)) ** 0.5
+    static_frequency = first * second
+    return static_frequency
 
-    def for_b2(self):
-        
-        self.Proncnost()
-        
-        new_b2 = self.b2*m.sqrt(self.sigma_bending/20)
-        
-        return new_b2
+def f_dynamic_frequency(f,n,b,f_2,t,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,ksi_sum,beta_2e,b_2,t_2opt):
+    B_bandage = f_B_bandage(b,f_2,t,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,ksi_sum,beta_2e,b_2,t_2opt,n)
+    dynamic_frequency = f  * (1 + B_bandage * (n / f) ** 2) ** 0.5
+    return dynamic_frequency
+
+def f_min_max(f,delta=0.05):
+    min_ = f * (1 - delta)
+    max_ = f * (1 + delta)
+    return min_, max_
     
-    def graf_rash(self):
+def f_k_line(k, n_line):   
+    return k * n_line
 
-        
-        plt.plot([6.25,6.26,6.27,6.3],self.P_iso(self.point_0().P,[6.25,6.26,6.27,6.3]), color="c",label = 'Изобара')
-        plt.plot([6.20,6.26,6.27,6.35],self.P_iso(((self.point_2_.P)),(([6.20,6.26,6.27,6.35]))), color="c")
-        plt.plot([6.20,6.26,6.27,6.35],self.P_iso(((self.point_1_.P)),(([6.20,6.26,6.27,6.35]))), color="c")
-        point_poter = gas(P = self.point_2_.P,h = self.point_2_.h + (self.delta_Hc + self.delta_Hp + (1 - self.x_vc) * self.delta_Hvc))
-        
-        plt.plot([self.point_0().s, self.point_1_.s, self.point_2_.s,self.point_t_konec.s,point_poter.s],[self.point_0().h, self.point_1_.h, self.point_2_.h,self.point_t_konec.h,point_poter.h],label = 'Процесс расширения')
-       
-        plt.plot(self.point_0().s, self.point_0().h, marker='.', color="black")
-        plt.plot(self.point_1_.s, self.point_1_.h, marker='.', color="black")
-        plt.plot(self.point_2_.s, self.point_2_.h, marker='.', color="black")
-        plt.plot(point_poter.s, point_poter.h, marker='.', color="black",)
-        plt.plot(self.point_t_konec.s, self.point_t_konec.h, marker='.',  color="black")
-        
-        
-        plt.plot([ self.point_0().s,self.point_t_konec.s], [self.point_0().h,self.point_t_konec.h], marker='.', color="black",linestyle=":")
 
-        plt.plot(self.T_iso(self.point_0())[1],self.T_iso(self.point_0())[0], color="g",label = 'Изотерма')
-        plt.plot(self.T_iso(self.point_2_)[1],self.T_iso(self.point_2_)[0], color="g")
-        plt.plot(self.T_iso(self.point_1_)[1],self.T_iso(self.point_1_)[0], color="g")
-        
-        
+mass = 10954.644
+L = 5
+L_r = 5.8
+d = 560 * 10**(-3)
+d_0 = 100 * 10**(-3)
 
-        plt.xlabel(r"S, $\frac{кДж}{кг * K}$", fontsize=14)
-        plt.ylabel(r"h, $\frac{кДж}{кг}$", fontsize=14)
+def f_numenator(d,L):    
+    numenator = (d / L) ** 2
+    return numenator
 
-        plt.xlim([6.26, 6.32])
-        #plt.ylim([3250, 3400])
+def f_denumenator(mass,L):
+    denumenator = (mass / L) ** 0.5
+    return denumenator
 
-        plt.title("Процесс расширения в регулирующей ступени")
-        plt.legend()
-        plt.grid()
-        plt.show()
+def f_n_critical(d,mass,L):
+    numenator = f_numenator(d,L)
+    denumenator = f_denumenator(mass,L)
+    n_critical  = 7.5 * numenator / denumenator
+    return n_critical
 
-        ###################
+def f_rps(d,mass,L):
+    n_critical = f_n_critical(d,mass,L)
+    rps = n_critical / 60
+    return rps
 
-    def stages(self, n_stages):
-        
-        self.n_stages = n_stages
-        return self.n_stages
-              
-    def start(self):
-            
-        self.Proncnost()
-        
-        self.diametr1 = self.avg_diameter - 0.2
-        self.root_diameter = self.diametr1 - self.l2
-        self.l2z = (-self.root_diameter + m.sqrt(self.root_diameter**2 + 4 * self.point_1().v / self.point_2_.v * self.l2 * self.peripheral_diameter))/2
-        self.dz2 = self.root_diameter + self.l2z
-        
-        return self.root_diameter , self.l2z , self.dz2 , self.l2
+E = 1.8 * 10**11
 
-    def nextg(self , number_turb):
-        
-        self.start()
+def f_EI(d,d_0):
+    EI = E * 3.1415 * (d ** 4 - d_0 ** 4) / 64
+    return EI
 
-        self.diametrs = (-self.diametr1 + self.dz2) / self.n_stages * number_turb + self.diametr1
-        self.blade_lengths = (-self.l2 + self.l2z) / self.n_stages * number_turb + self.l2
-        return self.diametrs , self.blade_lengths 
+def f_P_11(L,d,d_0,mass,L_r):
+    EI = f_EI(d,d_0)
+    P_11 = (3.1415 ** 2 / L ** 2) * (EI / (mass / L_r)) ** 0.5
+    return P_11
+def f_P_12(L,d,d_0,mass,L_r):
+    P_11 = f_P_11(L,d,d_0,mass,L_r)
+    P_12 = 4 * P_11
+    return P_12
 
-    def H0_(self):
-        
-        self.ucf = []
-        self.H0 = []
-        
-        
-        for kkk in range (0,self.n_stages):
+delta_op = 0.5 * 10 ** -9
+C_h = 0.5 * 10 ** 9
 
-            self.nextg(kkk)
+def f_delta_(C_h,delta_op):
+    delta_ = delta_op + 1 / C_h
+    return delta_
+def f_P_21(C_h,delta_op):
+    delta_ =f_delta_(C_h,delta_op) 
+    P_21 = (2 / (mass * delta_)) ** 0.5
+    return P_21
+def f_P_22(C_h,delta_op,L,L_rotor):
+    P_21 = f_P_21(C_h,delta_op)
+    P_22 = (L / L_r) * 3 ** 0.5 * P_21
+    return P_22
+def f_P_1(L,mass,L_r,C_h,delta_op,d,d_0):
+    P_11 = f_P_11(L,d,d_0,mass,L_r)
+    P_21 = f_P_21(C_h,delta_op)
+    P_1 = (1 / ((1 / P_11 ** 2) + (1 / P_21 ** 2) ) ** 0.5)/ (2 * 3.1415)
+    return P_1
+def f_P_2(C_h,delta_op,L,L_r,mass,d,d_0):
+    P_12 = f_P_12(L,d,d_0,mass,L_r)
+    P_22 = f_P_22(C_h,delta_op,L,L_r)
+    P_2 = (1 / ((1 / P_12 ** 2) + (1 / P_22 ** 2) ) ** 0.5)// (2 * 3.1415)
+    return P_2
 
-            reaction_degree = self.ro + (1.8 / (self.diametrs / self.blade_lengths + 1.8))
+'Первая критическая частота ротора''Вторая критическая частота ротора'
 
-            u_cf_n = self.fi * m.cos(m.radians(self.alpha_1)) /  (2 * (1 - reaction_degree) ** 0.5)
-            first = (self.diametrs / (u_cf_n)) ** 2
-            second = (self.n / 50) ** 2
-  
-            if kkk == 0:
-                self.H0 = self.H0 + [ 12.3 * first * second ] 
-            else:                
-                self.H0 = self.H0 + [0.93 * 12.3 * first * second ]
 
-        return self.H0
+def plot_freq(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,psi, E,f_2,J,ro_metal,ksi_sum,b,beta_2e,b_2,t_2opt,n):
     
-    def sueta(self):
-        self.H0_()
-        return self.fi
-
-    def reheat_(self):
-        self.H0_()
-        self.reheat_factor = 4.8 * 10 ** (-4) * (1 - self.internal_eff) * (self.point_0().h - self.point_1().h) * (self.n_stages - 1) / self.n_stages
-
-    def z_proverka(self):
-        
-        self.reheat_()
-        
-        self.H0_poln = 0
-        aue = 0
-        for ttt in range (-1,self.n_stages-1):
-            self.H0_poln = self.H0_poln + self.H0[ttt]
-            
-        self.z_z = ((self.hp_heat_drop())* (1 + self.reheat_factor))/(self.H0_poln/(self.n_stages))
-        
-        return self.z_z
-
-    def real_heat_drop(self):
-        
-        self.z_proverka()
-        
-        
-        bias = (self.hp_heat_drop() * (1 + self.reheat_factor) - self.H0_poln) / self.n_stages
-        
-        self.new_actual_heat_drop = []
-        
-        for k in range(0,self.n_stages):
-            
-            self.new_actual_heat_drop = self.new_actual_heat_drop + [self.H0[k] + bias]
-            
-        return self.new_actual_heat_drop
-
-    def Heat_drop_proverka(self):
-        
-        self.real_heat_drop()
-        summ = 0
-        
-        
-        for i in range(0,self.n_stages):
-            
-            summ = summ + self.new_actual_heat_drop[i]
-            
-        print("Процентная разница между суммарным теплоперепадом на ступенях и полным теплоперепадом на ЦВД",(summ-self.hp_heat_drop())/summ)
-        
-
-    def for_plot(self):
-        
-        self.real_heat_drop()
-        
-        d_plot = []
-        ucf_plot = []
-        veernost_plot = []
-        react_plot = []
-        blade_plot = []
-        
-        for i in range (0,self.n_stages):
-            
-            d_plot = d_plot + [self.nextg(i)[0]]
-            
-            blade_plot = blade_plot + [self.nextg(i)[1]]
-            
-            veernost_plot = veernost_plot + [self.nextg(i)[0]/self.nextg(i)[1]]
+    static_frequency = f_static_frequency(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,psi, E,f_2,J,ro_metal,ksi_sum,n)
     
-            react_plot = react_plot + [self.ro + (1.8 / (self.nextg(i)[0]/self.nextg(i)[1] + 1.8))]
+    f_a0 = static_frequency * fi
+    n_line = np.linspace(0, 50)
+    f = f_dynamic_frequency(f_a0,n_line,b,f_2,t,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,ksi_sum,beta_2e,b_2,t_2opt)
     
-            ucf_plot = ucf_plot + [self.fi * m.cos(m.radians((self.alpha_1))) /  (2 * (1 -(self.ro + (1.8 / (self.nextg(i)[0]/self.nextg(i)[1] + 1.8))))**0.5)]
-
-        fig, ax = plt.subplots(1, 1, figsize=(8, 8))
-        X1 = range(1,self.n_stages+1)
-        
-        Y1 = d_plot
-        Y2 = blade_plot
-        Y3 = veernost_plot
-        Y4 = react_plot      
-        Y5 = ucf_plot
-        Y6 = self.new_actual_heat_drop
-
-        ax.plot(X1,Y1, color = 'k')
-        
-        ax.set_title("Зависимость диаметра лопаток от номера ступени")
-        ax.set_ylabel("Диаметр")
-        ax.set_xlabel("z")
-        ax.plot(range(1, self.n_stages + 1), Y1,  marker='o')
-        ax.grid()
-        plt.show()
-
-        fig, ax = plt.subplots(1, 1, figsize=(8, 8))
-        ax.plot(X1,Y2, color = 'k')
-        plt.title("Зависимость длинны лопаток от номера ступени")
-        plt.ylabel("Длинна лопатки")
-        plt.xlabel("z")
-        ax.plot(range(1, self.n_stages + 1), Y2,  marker='o')
-        plt.grid()
-        plt.show()
-
-        fig, ax = plt.subplots(1, 1, figsize=(8, 8))
-        ax.plot(X1,Y3, color = 'k')
-        plt.title("Зависимость d/l от номера ступени")
-        plt.ylabel("d/l")
-        plt.xlabel("z")
-        ax.plot(range(1, self.n_stages + 1), Y3,  marker='o')
-        plt.grid()
-        plt.show()
+    min_line_a0, max_line_a0 = f_min_max(f)
     
-        fig, ax = plt.subplots(1, 1, figsize=(8, 8))
-        ax.plot(X1,Y4, color = 'k')
-        plt.title("Зависимость степени реактивности от номера ступени")
-        plt.ylabel("Степень реактивности")
-        plt.xlabel("z")
-        ax.plot(range(1, self.n_stages + 1), Y4,  marker='o')
-        plt.grid()
-        plt.show()
-        
-        fig, ax = plt.subplots(1, 1, figsize=(8, 8))
-        ax.plot(X1,Y5, color = 'k')
-        plt.title("Зависимость u/cf от номера ступени")
-        plt.ylabel("u/cf")
-        plt.xlabel("z")
-        ax.plot(range(1, self.n_stages + 1), Y5,  marker='o')
-        plt.grid()
-        plt.show()
-        
-        fig, ax = plt.subplots(1, 1, figsize=(8, 8))
-        ax.plot(X1,Y6, color = 'k')
-        plt.title("Зависимость теплоперепада от номера ступени")
-        plt.ylabel("H")
-        plt.xlabel("z")
-        ax.plot(range(1, self.n_stages + 1 ), Y6,  marker='o')
-        plt.grid()
-        plt.show()
-    
-    ################
-    def bend_last(self):
-        
-        self.z_proverka()
-        self.density = 7800 
-        self.max_stress_1 = 235 * MPa
-        self.tension_stress_root_func = 0.5 * self.density * (self.u ** 2) * self.dz2 * self.l2z
-        return self.tension_stress_root_func , self.l2z, self.density
-        
-    def validate_bend(self):
-        
-        self.bend_last()
-        print(f"Запас прочности: {self.max_stress_1 / self.tension_stress_root_func}")
-        
-    #лопатка
-    
-    def tension_stress(self,x):
-        
-        self.bend_last()
-        
-        r_root = (self.dz2 - self.l2z) / 2
-        constant_part = self.density * (self.u ** 2)
-        left = r_root * (self.l2z - x)
-        right = 0.5 * ((self.l2z ** 2) - (x ** 2))
-        self.tens = constant_part * (left + right)
-        return self.tens
-    
-    def plot_tens(self):
+    fig, ax = plt.subplots(1,1,figsize=(10,10))
 
-        y = np.linspace(0, self.l2z, 100)
-        fig, ax = plt.subplots(1,1,figsize=(5,5))
-        ax.plot(self.tension_stress(y) / MPa, y)
-        ax.set_xlabel("Напряжения растяжения, МПа")
-        ax.set_ylabel("Координаты сечения вдоль высоты лопатки, м")
-        ax.grid()
+    ax.plot(n_line, f_dynamic_frequency(f_a0,n_line,b,f_2,t,electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,ksi_sum,beta_2e,b_2,t_2opt), label='$f_{a0}$')
+    ax.fill_between(n_line, y1=min_line_a0, y2=max_line_a0, alpha=0.5)
 
-    #диск
+    ax.plot(n_line, f_k_line(1,n_line), label=f'k={1}')
+    ax.plot(n_line, f_k_line(2,n_line), label=f'k={2}')
+    ax.plot(n_line, f_k_line(3,n_line), label=f'k={3}')
+    ax.plot(n_line, f_k_line(4,n_line), label=f'k={4}')
+    ax.plot(n_line, f_k_line(5,n_line), label=f'k={5}')
+    ax.plot(n_line, f_k_line(6,n_line), label=f'k={6}')
+    ax.plot(n_line, f_k_line(7,n_line), label=f'k={7}')
+    ax.plot(n_line, f_k_line(8,n_line), label=f'k={8}')
+    ax.plot(n_line, f_k_line(9,n_line), label=f'k={9}')
 
-    def tension_disk(self):
-        
-        self.bend_last()
-        nu = 0.3
-        r1 = self.root_diameter/2
-        r2 = 0.56 /2 
-        sigma_1 = 0
-        sigma_2 = 100 * MPa
-        max_stress_2 = 510 * MPa
-        r = 0
-        a = (3 + nu) / 8
-        sigma_r = a * self.density * (self.u ** 2) * (r2**2 - r**2) + sigma_2
-        b = (1 + 3 * nu) / (3 + nu)
-        sigma_theta = a * self.density * (self.u ** 2) * (r2**2 - b * r**2) + sigma_2
-        print("Коэффициент запаса прочности =", max_stress_2/sigma_theta)
-
-    def _lambda_(self):
-        
-        self.bend_last()
-        mm = 1e-3
-        self.m = 12
-        self.t = 25 * mm
-        self.beta = self.beta2_ust
-        self.density = 7800
-        self.E = 2 * (10**11)
-        self.z = self.z_2
-        self.d = self.dz2
-        self.l = self.l2z
-        self.F = self.f2 * (10 ** (-4))
-        self.J = self.I2_min* (10 ** (-8))  #((self.b2/self.b2_atl)**4)
-        self.delta = 5 * mm
-        self.b = 40 * mm
-        self._lambda = self.l / ((self.J / self.F) ** 0.5)
-        
-        return self._lambda
-
-    def parametrs_(self,psi, H):
-        
-        self._lambda_()
-        self.psi = psi      
-        self.H = H           
-        return self.psi, self.H
+    ax.set_xlabel("n, rps")
+    ax.set_ylabel("f, Hz")
+    ax.grid()
+    ax.legend()
+    ax.set_title("Вибрационная диаграмма");
     
-                   
-    def Fi_graf(self, fi_graf):
-                   
-        self.fi_graf = fi_graf
-        
-        return (self.fi_graf)
-                   
+def graf_tens(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,ksi_sum,n, ksi_sum_g, ro_metal): 
     
-    def k_and_nu(self):
-        
-        self._lambda_()
-        self.J_b = self.b * (self.delta ** 3) / 12
-        self.k = (12 * (self.m - 1) * self.H * self.E * self.J_b * self.l * (np.cos(np.deg2rad(self.beta))) ** 2) / (self.m * self.t * self.J * self.E)
-        
-        self.nu = self.b * self.delta * self.t / (self.F * self.l)
-        self.B_bandage = 0.5 * ((self.d/self.l) - 1) * ((self.nu+1/2)/(self.nu+1/3)) + np.sin(np.deg2rad(self.beta)) ** 2
-        return self.k, self.nu
+    l_2z = f_l_2z(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,ksi_sum,n, ksi_sum_g)
+    x = np.linspace(0, l_2z, 100)
+    tens = f_tens(x, electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,avg_diameter,n, ro_metal,ksi_sum)
+    fig, ax = plt.subplots(1,1,figsize=(10,10))
+    ax.plot(tens/ MPa, x)
+    ax.set_xlabel("Напряжения растяжения, МПа")
+    ax.set_ylabel("Координаты сечения вдоль высоты лопатки, м")
+    ax.grid()
     
-    def static_frequency(self,i):
-        
-        self.k_and_nu()
+import pandas as pd
 
-        _m = {
-        1: 0.56,
-        2: 3.51,
-        3: 9.82
-         }
-        first = self.psi * _m[i] / (self.l ** 2)
-        second = ((self.E * self.J) / ((self.density * self.F))) ** 0.5
-        return first * second
+def f_table_parametrs(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1,
+                     ksi_sum,avg_diameter, n, ksi_sum_g,beta_2e,b_2):
+    return pd.DataFrame({
+    "P(Мпа)": [f_point_0(p0, t0).P, 
+          f_point_1_(ro,H_0,p0, t0,ksi_sum).P,
+          f_point_2_(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1,
+                     ksi_sum,avg_diameter, n, ksi_sum_g).P,
+          f_point_t_konec(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, 
+                          ksi_sum,avg_diameter, n, ksi_sum_g).P,
+          f_pont_poter(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, b_1, 
+                             ksi_sum,alpha_1e, avg_diameter, n,ksi_sum_g,beta_2e,b_2).P],
+    "T(К)": [f_point_0(p0, t0).T, 
+          f_point_1_(ro,H_0,p0, t0,ksi_sum).T,
+          f_point_2_(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1,
+                     ksi_sum,avg_diameter, n, ksi_sum_g).T,
+          f_point_t_konec(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, 
+                          ksi_sum,avg_diameter, n, ksi_sum_g).T,
+          f_pont_poter(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, b_1, 
+                             ksi_sum,alpha_1e, avg_diameter, n,ksi_sum_g,beta_2e,b_2).T],
+    "H(кДж/кг)": [f_point_0(p0, t0).h, 
+          f_point_1_(ro,H_0,p0, t0,ksi_sum).h,
+          f_point_2_(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, 
+                     ksi_sum,avg_diameter, n, ksi_sum_g).h,
+          f_point_t_konec(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, 
+                          ksi_sum,avg_diameter, n, ksi_sum_g).h,
+          f_pont_poter(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, b_1, 
+                             ksi_sum,alpha_1e, avg_diameter, n,ksi_sum_g,beta_2e,b_2).h],
+    "S(кДж/кг*К)": [f_point_0(p0, t0).s, 
+          f_point_1_(ro,H_0,p0, t0,ksi_sum).s,
+          f_point_2_(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1,
+                     ksi_sum,avg_diameter, n, ksi_sum_g).s,
+          f_point_t_konec(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, alpha_1e,b_1, 
+                          ksi_sum,avg_diameter, n, ksi_sum_g).s,
+          f_pont_poter(electrical_power,pk,p0, t0,p_middle, t_middle, p_feed_water, t_feed_water,ro,H_0, b_1, 
+                             ksi_sum,alpha_1e, avg_diameter, n,ksi_sum_g,beta_2e,b_2).s],
+    "point": ["0", "1_","2_","t_konec","poter"],}).set_index("point")
     
-    def to_dynamic_frequency(self,F,n):
-       
-        self.k_and_nu()
-        
-        root = (1 + self.B_bandage * (n / F) ** 2) ** 0.5
-        return F * root
-
-    def jjjjj(self):
-        self.k_and_nu()
-        
-        return self.B_bandage
-        
-        
-    
-    def min_max(self,F, delta=0.05):
-        
-        self.k_and_nu()
-        
-        return F * (1 - delta) , F * (1 + delta)
-    
-    def k_line(self, k, n_line):
-        
-        return k * n_line
-    
-    def vibr_plot(self):
-        
-        f_a0 = self.static_frequency(1) * self.fi_graf
-    
-        n_line = np.linspace(0, 60)
-        min_line_a0, max_line_a0 = self.min_max(self.to_dynamic_frequency(f_a0, n_line))
-        fig, ax = plt.subplots(1,1,figsize=(15,10))
-
-        ax.plot(n_line, self.to_dynamic_frequency(f_a0, n_line), label='$f_{a0}$')
-        ax.fill_between(n_line, y1=min_line_a0, y2=max_line_a0, alpha=0.5)
-
-        ax.plot(n_line, self.k_line(1,n_line), label=f'k={1}')
-        ax.plot(n_line, self.k_line(4,n_line), label=f'k={4}')
-        ax.plot(n_line, self.k_line(7,n_line), label=f'k={7}')
-        ax.plot(n_line, self.k_line(9,n_line), label=f'k={9}')
-
-        ax.set_xlabel("n, rps")
-        ax.set_ylabel("f, Hz")
-        ax.grid()
-        ax.legend()
-        ax.set_title("Вибрационная диаграмма");
-    
-    # ROTAS/
-    
-    def rotor_(self,L ,L_rotor,d,d_0, rotor_mass):
-
-        n = 50
-        diameter = 470  # in mm
-        L = 4.945  # in m
-        mass = 9936  # in kg
-        
-        numenator = (diameter / L) ** 2
-        denumenator = (mass / L) ** 0.5
-        n_critical  = 7.5 * numenator / denumenator
-        rps = n_critical / 60 
-        
-        print(rps < n)
-
-    
-    def Rotor_stress(self, L ,L_rotor,d,d_0, rotor_mass ):
-        
-        #8863.458
-        E = 1.8 * 10**11
-        density = 7800
-        EI = E * np.pi * (d ** 4 - d_0 ** 4) / 64
-    
-        P_11 = (np.pi ** 2 / L ** 2) * (EI / (rotor_mass / L_rotor)) ** 0.5
-        
-        P_12 = 4 * P_11
-
-        delta_op = 0.5 * 10 ** -9
-        C_horizontal = 0.5 * 10 ** 9
-        delta_opor = delta_op + 1 / C_horizontal
-
-        P_21 = (2 / (rotor_mass * delta_opor)) ** 0.5
-        P_22 = (L / L_rotor) * 3 ** 0.5 * P_21
-        P_1 = 1 / (
-            (1 / P_11 ** 2) + (1 / P_21 ** 2) 
-        ) ** 0.5
-        P_1 / (2 * np.pi)
-        P_2 = 1 / (
-            (1 / P_12 ** 2) + (1 / P_22 ** 2) 
-        ) ** 0.5
-        print('Первая критическая частота ротора', P_1 / (2 * np.pi) ,'Вторая критическая частота ротора', P_2 / (2 * np.pi))

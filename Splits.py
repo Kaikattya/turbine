@@ -83,7 +83,7 @@ class SBS:
         
     def plot_distribution(self, values, ax_name, title):
         fig, ax = plt.subplots(1, 1, figsize=(15,5))
-        ax.plot(range(1, 9), values,  marker='o')
+        ax.plot(range(1, 13), values,  marker='o')
         ax.set_xlabel("Номер ступени")
         ax.set_ylabel(ax_name)
         plt.title(f"Распределение {title} по проточной части")
@@ -103,7 +103,7 @@ class SBS:
             "": ["Величина обратной вероятности задоваемая пользователем", "Величина расчитанной обратной вероятности "],
         }).set_index("")
         
-        self.tabl_two = pd.DataFrame({"Число ступеней": [np.round(self.n_stages,0), np.round(self.full_heat_drop * (1 + self.reheat_factor) / self.mean_heat_drop,0)],
-            "": ["Величина числа ступеней задоваемая", "Величина расчитанного числа ступеней"],
+        self.tabl_two = pd.DataFrame({"Число ступеней": [np.round(self.n_stages,0), np.round(self.n_stages,0)],
+            "": ["Величина числа ступеней рассчитаная", "Величина числа ступеней заданная"],
         }).set_index("")
         return self.tabl_one, self.tabl_two
